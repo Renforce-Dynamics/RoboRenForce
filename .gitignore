@@ -1,0 +1,26 @@
+# IDEs
+.idea
+
+# builds
+*.egg-info
+
+# cache
+__pycache__
+.pytest_cache
+
+# vs code
+.vscode
+
+example/*
+
+test_env.yaml
+
+logs/
+*.hdf5
+
+data/assets/*
+pyrightconfig.json
+.docs/*
+.references/*
+
+.cursor/*
