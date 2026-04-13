@@ -22,5 +22,7 @@ data/assets/*
 pyrightconfig.json
 .docs/*
 .references/*
+.claude/*
 
 .cursor/*
+TODO*
