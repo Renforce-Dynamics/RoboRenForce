@@ -1,44 +1,29 @@
-from dataclasses import MISSING
 """
 Fusion Layers
 
 Fuses vision-language features with proprioception.
 
-TODO Phase 2 (Week 2, Priority P0):
-- [ ] Implement concat + MLP fusion
-- [ ] Add cross-attention fusion (optional)
-- [ ] Support different fusion strategies
+IO Contract:
+    Input:
+        vl_features:    (B, vl_dim)     from VLM backbone
+        proprioception: (B, proprio_dim) from robot state
+
+    Output:
+        fused_features: (B, output_dim) ready for action head
 """
+
+from __future__ import annotations
 
 import torch
 import torch.nn as nn
 
 from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
-from RoboRenForce.networks.mlp import MLP
-
-
-@configclass
-class FusionLayerCfg(ModuleBaseCfg):
-    """
-    Fusion layer configuration.
-
-    Fusion strategies:
-    - "concat_mlp": Concatenate VL + proprio, then MLP
-    - "cross_attention": Cross-attention between VL and proprio (future)
-    """
-
-    class_type: type["FusionLayer"] = MISSING
-
-    fusion_type: str = "concat_mlp"
-    output_dim: int = 512
-    hidden_dims: list[int] = [512]
-    activation: str = "relu"
 
 
 class FusionLayer(ModuleBase):
     """
-    Fuses VL features with proprioception.
+    Fuses VL features with proprioception via concat + MLP.
 
     Input:
     - vl_features: (B, vl_dim) from VLM backbone
@@ -49,54 +34,61 @@ class FusionLayer(ModuleBase):
     """
 
     def __init__(self, cfg: FusionLayerCfg, dim_params: dict):
-        super().__init__(cfg)
+        super().__init__()
+        self.cfg = cfg
 
         vl_dim = dim_params["vl_feature_dim"]
-        proprio_dim = dim_params["proprio_dim"]
+        proprio_dim = dim_params.get("proprio_dim", 0)
+
+        self.output_dim = cfg.output_dim
 
         if cfg.fusion_type == "concat_mlp":
-            # TODO: Implement concat + MLP fusion
-            # input_dim = vl_dim + proprio_dim
-            # self.mlp = MLP(
-            #     input_dim=input_dim,
-            #     output_dim=cfg.output_dim,
-            #     hidden_dims=cfg.hidden_dims,
-            #     activation=cfg.activation,
-            # )
-            raise NotImplementedError("TODO: Implement concat_mlp fusion")
+            input_dim = vl_dim + proprio_dim
+            layers = []
+            dims = [input_dim] + list(cfg.hidden_dims) + [cfg.output_dim]
+            for i in range(len(dims) - 1):
+                layers.append(nn.Linear(dims[i], dims[i + 1]))
+                if i < len(dims) - 2:  # no activation on last layer
+                    if cfg.activation == "relu":
+                        layers.append(nn.ReLU())
+                    elif cfg.activation == "gelu":
+                        layers.append(nn.GELU())
+                    elif cfg.activation == "silu":
+                        layers.append(nn.SiLU())
+                    if cfg.dropout > 0:
+                        layers.append(nn.Dropout(cfg.dropout))
+            self.mlp = nn.Sequential(*layers)
 
-        elif cfg.fusion_type == "cross_attention":
-            # TODO: Implement cross-attention fusion (future)
-            raise NotImplementedError("TODO: Implement cross_attention fusion")
+        elif cfg.fusion_type == "add":
+            self.vl_proj = nn.Linear(vl_dim, cfg.output_dim)
+            self.proprio_proj = nn.Linear(proprio_dim, cfg.output_dim)
+            self.layer_norm = nn.LayerNorm(cfg.output_dim)
 
         else:
             raise ValueError(f"Unknown fusion_type: {cfg.fusion_type}")
-
-        self.output_dim = cfg.output_dim
 
     def forward(
         self,
         vl_features: torch.Tensor,
         proprioception: torch.Tensor,
     ) -> torch.Tensor:
-        """
-        Fuse VL features with proprioception.
+        if self.cfg.fusion_type == "concat_mlp":
+            concat = torch.cat([vl_features, proprioception], dim=-1)
+            return self.mlp(concat)
+        elif self.cfg.fusion_type == "add":
+            vl_proj = self.vl_proj(vl_features)
+            proprio_proj = self.proprio_proj(proprioception)
+            return self.layer_norm(vl_proj + proprio_proj)
 
-        Args:
-            vl_features: (B, vl_dim)
-            proprioception: (B, proprio_dim)
 
-        Returns:
-            fused: (B, output_dim)
+@configclass
+class FusionLayerCfg(ModuleBaseCfg):
+    """Fusion layer configuration."""
 
-        TODO:
-        - Concatenate inputs
-        - Pass through MLP
-        - Return fused features
-        """
-        raise NotImplementedError("TODO: Implement fusion forward pass")
+    class_type: type[FusionLayer] = FusionLayer
 
-        # Example:
-        # concat = torch.cat([vl_features, proprioception], dim=-1)
-        # fused = self.mlp(concat)
-        # return fused
+    fusion_type: str = "concat_mlp"
+    output_dim: int = 512
+    hidden_dims: list = [512]
+    activation: str = "relu"
+    dropout: float = 0.0

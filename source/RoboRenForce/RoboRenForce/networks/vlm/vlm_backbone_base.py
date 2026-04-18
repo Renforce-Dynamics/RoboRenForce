@@ -50,7 +50,8 @@ class VLMBackbone(ModuleBase):
     """
 
     def __init__(self, cfg: VLMBackboneCfg):
-        super().__init__(cfg)
+        super().__init__()
+        self.cfg = cfg
 
         self.model_name = cfg.model_name
         self.freeze = cfg.freeze

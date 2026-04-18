@@ -1,73 +1,239 @@
 #!/usr/bin/env python3
 """
-Single-GPU VLA Pretraining Script
+VLA Pretrain — Single GPU Training Script
 
 Usage:
+    # With mock VLM (no GPU required, for testing):
+    python scripts/vla/pretrain/train_single_gpu.py --mock --epochs 5
+
+    # With real Qwen2-VL (requires GPU + model download):
     python scripts/vla/pretrain/train_single_gpu.py \
-        --config RRF_vla_tasks.vla_pretrain.minimal_example \
-        --log_dir logs/pretrain_single
+        --data_root data/dummy_dataset \
+        --model_name Qwen/Qwen2-VL-2B-Instruct \
+        --epochs 10 \
+        --batch_size 4
 
-TODO Phase 3 (Week 3, Priority P0):
-- [ ] Implement argument parsing
-- [ ] Load config from module path
-- [ ] Create VLA pretrain runner
-- [ ] Run training loop
-- [ ] Handle checkpoint resuming
-
-Reference: .claude/project-structure-scripts.md Section 2.1
+    # Resume from checkpoint:
+    python scripts/vla/pretrain/train_single_gpu.py \
+        --resume checkpoints/checkpoint_step_1000.pt
 """
 
 import argparse
-from pathlib import Path
+import sys
+import os
 
-# TODO: Add imports
-# from RoboRenForce.utils.package import load_config
-# from RoboRenForce.runners.vla.pretrain import VLAPretrainRunner
+# Add project to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../source/RoboRenForce"))
+
+import torch
+import torch.nn as nn
+
+from RoboRenForce.utils.configclass import configclass
+from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
+from RoboRenForce.networks.vlm.vlm_backbone_base import VLMBackbone, VLMBackboneCfg
+from RoboRenForce.networks.vlm.fusion_layers import FusionLayerCfg
+from RoboRenForce.components.actor.action_heads.regression_action_head import RegressionActionHeadCfg
+from RoboRenForce.components.actor.action_heads.diffusion_action_head import DiffusionActionHeadCfg
+from RoboRenForce.components.actor.vla_actor import VLAActorCfg
+from RoboRenForce.algorithms.vla_training.pretrain_algorithm import VLAPretrainAlgorithmCfg
+from RoboRenForce.dataset.lerobot.lerobot_dataset import LeRobotDatasetCfg
+from RoboRenForce.runners.vla.pretrain.vla_pretrain_runner import (
+    VLAPretrainRunner,
+    VLAPretrainRunnerCfg,
+)
 
 
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Single-GPU VLA Pretraining")
-    
-    parser.add_argument("--config", type=str, required=True, help="Config module path")
-    parser.add_argument("--data_root", type=str, default=None, help="Override dataset root")
-    parser.add_argument("--num_epochs", type=int, default=None, help="Override epochs")
-    parser.add_argument("--batch_size", type=int, default=None, help="Override batch size")
-    parser.add_argument("--log_dir", type=str, default="logs/pretrain_single")
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--resume", type=str, default=None, help="Resume from checkpoint")
-    
-    return parser.parse_args()
+# ===== Mock VLM for testing without real model ===== #
+
+class MockVLM(VLMBackbone):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.encoder = nn.Sequential(
+            nn.Conv2d(3, 16, 3, stride=2, padding=1), nn.ReLU(),
+            nn.AdaptiveAvgPool2d(1), nn.Flatten(),
+            nn.Linear(16, cfg.output_dim),
+        )
+        self.output_dim = cfg.output_dim
+
+    def forward(self, image, text=None, **kwargs):
+        return self.encoder(image)
+
+
+@configclass
+class MockVLMCfg(VLMBackboneCfg):
+    class_type: type = MockVLM
+    model_name: str = "mock"
+    output_dim: int = 64
+    freeze: bool = True
+
+
+class MockDataset(torch.utils.data.Dataset):
+    def __init__(self, cfg=None):
+        self.n = 200
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, idx):
+        return {
+            "image": torch.randn(3, 64, 64),
+            "proprioception": torch.randn(12),
+            "action": torch.randn(7),
+        }
+
+
+@configclass
+class MockDatasetCfg(ModuleBaseCfg):
+    class_type: type = MockDataset
+
+
+# ===== Config builders ===== #
+
+def build_psi0_mock_config(args) -> VLAPretrainRunnerCfg:
+    """Use MockVLM with real Psi0 data (for testing pipeline without loading real VLM)."""
+    action_head_cfg = RegressionActionHeadCfg(
+        action_dim=args.action_dim, action_horizon=1, hidden_dims=[256, 256],
+    ) if args.head == "regression" else DiffusionActionHeadCfg(
+        action_dim=args.action_dim, action_horizon=1,
+        num_layers=4, num_heads=8, embed_dim=256,
+        num_train_steps=100, num_diffusion_steps=10,
+    )
+
+    return VLAPretrainRunnerCfg(
+        vla_actor_cfg=VLAActorCfg(
+            vlm_backbone_cfg=MockVLMCfg(output_dim=256),
+            freeze_vlm=True,
+            fusion_cfg=FusionLayerCfg(output_dim=512, hidden_dims=[512]),
+            action_head_cfg=action_head_cfg,
+            use_proprioception=True,
+        ),
+        algorithm_cfg=VLAPretrainAlgorithmCfg(
+            learning_rate=args.lr, warmup_steps=100, use_amp=args.amp,
+        ),
+        dataset_cfg=LeRobotDatasetCfg(
+            data_root=args.data_root,
+            load_videos=True,
+            frames_dir=args.frames_dir,
+            image_size=tuple(args.image_size),
+        ),
+        batch_size=args.batch_size,
+        num_epochs=args.epochs,
+        num_workers=args.num_workers,
+        log_interval=10,
+        save_interval=args.save_interval,
+        checkpoint_dir=args.checkpoint_dir,
+    )
+
+
+def build_mock_config(args) -> VLAPretrainRunnerCfg:
+    action_head_cfg = RegressionActionHeadCfg(
+        action_dim=7, action_horizon=1, hidden_dims=[128, 128],
+    ) if args.head == "regression" else DiffusionActionHeadCfg(
+        action_dim=7, action_horizon=1,
+        num_layers=2, num_heads=4, embed_dim=64,
+        num_train_steps=50, num_diffusion_steps=10,
+    )
+
+    return VLAPretrainRunnerCfg(
+        vla_actor_cfg=VLAActorCfg(
+            vlm_backbone_cfg=MockVLMCfg(output_dim=64),
+            freeze_vlm=True,
+            fusion_cfg=FusionLayerCfg(output_dim=128, hidden_dims=[128]),
+            action_head_cfg=action_head_cfg,
+            use_proprioception=True,
+        ),
+        algorithm_cfg=VLAPretrainAlgorithmCfg(
+            learning_rate=args.lr, warmup_steps=100, use_amp=False,
+        ),
+        dataset_cfg=MockDatasetCfg(),
+        batch_size=args.batch_size,
+        num_epochs=args.epochs,
+        num_workers=0,
+        log_interval=10,
+        save_interval=args.save_interval,
+        checkpoint_dir=args.checkpoint_dir,
+    )
+
+
+def build_qwen2vl_config(args) -> VLAPretrainRunnerCfg:
+    from RoboRenForce.networks.vlm.qwen2vl import Qwen2VLCfg
+
+    action_head_cfg = RegressionActionHeadCfg(
+        action_dim=args.action_dim, action_horizon=1, hidden_dims=[256, 256],
+    ) if args.head == "regression" else DiffusionActionHeadCfg(
+        action_dim=args.action_dim, action_horizon=1,
+        num_layers=4, num_heads=8, embed_dim=256,
+        num_train_steps=100, num_diffusion_steps=10,
+    )
+
+    return VLAPretrainRunnerCfg(
+        vla_actor_cfg=VLAActorCfg(
+            vlm_backbone_cfg=Qwen2VLCfg(model_name=args.model_name, freeze=True),
+            freeze_vlm=True,
+            fusion_cfg=FusionLayerCfg(output_dim=512, hidden_dims=[512]),
+            action_head_cfg=action_head_cfg,
+            use_proprioception=True,
+        ),
+        algorithm_cfg=VLAPretrainAlgorithmCfg(
+            learning_rate=args.lr, warmup_steps=1000, use_amp=args.amp,
+        ),
+        dataset_cfg=LeRobotDatasetCfg(
+            data_root=args.data_root,
+            load_videos=True,
+            frames_dir=args.frames_dir,
+            image_size=tuple(args.image_size),
+        ),
+        batch_size=args.batch_size,
+        num_epochs=args.epochs,
+        num_workers=args.num_workers,
+        log_interval=10,
+        save_interval=args.save_interval,
+        checkpoint_dir=args.checkpoint_dir,
+    )
 
 
 def main():
-    args = parse_args()
-    
-    print(f"Single-GPU VLA Pretraining")
-    print(f"Config: {args.config}")
-    
-    # TODO: Load config
-    # cfg = load_config(args.config)
-    
-    # TODO: Override config with CLI args
-    # if args.data_root: cfg.dataset_cfg.data_root = args.data_root
-    # if args.num_epochs: cfg.num_epochs = args.num_epochs
-    # if args.batch_size: cfg.batch_size = args.batch_size
-    
-    # TODO: Validate config
-    # missing = cfg.validate()
-    # if missing: raise ValueError(f"Missing fields: {missing}")
-    
-    # TODO: Create runner
-    # runner = VLAPretrainRunner(cfg, args.log_dir, args.device)
-    
-    # TODO: Resume from checkpoint
-    # if args.resume: runner.load_checkpoint(args.resume)
-    
-    # TODO: Train
-    # runner.learn(num_epochs=cfg.num_epochs)
-    
-    raise NotImplementedError("TODO: Implement single-GPU training script")
+    parser = argparse.ArgumentParser(description="VLA Pretrain (Single-GPU)")
+    parser.add_argument("--mock", action="store_true", help="Use mock VLM + mock data for CPU testing")
+    parser.add_argument("--psi0", action="store_true", help="Use mock VLM + real Psi0 data")
+    parser.add_argument("--data_root", type=str, default="/vepfs/users/zza/hvla/data/psi-data-shared/unitree_dex3_converted/G1_Dex3_PickApple")
+    parser.add_argument("--model_name", type=str, default="Qwen/Qwen2-VL-2B-Instruct")
+    parser.add_argument("--head", type=str, default="regression", choices=["regression", "diffusion"])
+    parser.add_argument("--action_dim", type=int, default=36)
+    parser.add_argument("--image_size", type=int, nargs=2, default=[224, 224])
+    parser.add_argument("--frames_dir", type=str, default="", help="Pre-extracted frames directory")
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--amp", action="store_true")
+    parser.add_argument("--save_interval", type=int, default=500)
+    parser.add_argument("--checkpoint_dir", type=str, default="checkpoints/vla_pretrain/")
+    parser.add_argument("--log_dir", type=str, default="logs/vla_pretrain/")
+    parser.add_argument("--resume", type=str, default=None)
+    parser.add_argument("--device", type=str, default=None)
+    args = parser.parse_args()
+
+    if args.device is None:
+        args.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    print(f"Device: {args.device}")
+    print(f"Mode: {'mock' if args.mock else 'real'}")
+    print(f"Action head: {args.head}")
+
+    if args.mock:
+        cfg = build_mock_config(args)
+    elif args.psi0:
+        cfg = build_psi0_mock_config(args)
+    else:
+        cfg = build_qwen2vl_config(args)
+
+    runner = VLAPretrainRunner(cfg, log_dir=args.log_dir, device=args.device)
+
+    if args.resume:
+        runner.load_checkpoint(args.resume)
+
+    runner.learn(num_epochs=args.epochs)
 
 
 if __name__ == "__main__":

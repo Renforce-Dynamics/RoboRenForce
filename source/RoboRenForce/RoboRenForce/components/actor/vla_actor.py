@@ -1,64 +1,40 @@
-from dataclasses import MISSING
 """
 VLA Actor (System 1 + System 2)
 
-Combines VLM backbone (System 2) with Action Expert (System 1).
+Combines VLM backbone (System 2) with Fusion + Action Expert (System 1).
 
-Reference: .references/Psi0/src/psi/models/psi0.py
+IO Contract:
+    Input (forward):
+        obs_dict: {
+            "image":          (B, C, H, W) float tensor,
+            "text":           str or list[str] (optional),
+            "proprioception": (B, proprio_dim) float tensor (optional),
+        }
+        deterministic: bool
 
-TODO Phase 2 (Week 2, Priority P0):
-- [ ] Implement VLA actor combining VLM + fusion + action head
-- [ ] Support frozen VLM backbone
-- [ ] Handle text and proprioception inputs
-- [ ] Implement forward pass
-- [ ] Add LoRA support for VLM (optional)
+    Output (forward):
+        actions: (B, action_horizon, action_dim)
+
+    Training (train_forward):
+        Input:  obs_dict, target_actions (B, action_horizon, action_dim)
+        Output: dict from action_head.train_forward (for loss computation)
 """
 
-from typing import Dict, Optional
+from __future__ import annotations
+
+from typing import Dict
+from dataclasses import MISSING
 
 import torch
 import torch.nn as nn
 
 from RoboRenForce.utils.configclass import configclass
-from RoboRenForce.components.actor.actor_base import ActorBase, ActorBaseCfg
-from RoboRenForce.networks.vlm import VLMBackboneCfg, FusionLayerCfg
-from RoboRenForce.components.actor.action_heads import DiffusionActionHeadCfg
+from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
+from RoboRenForce.networks.vlm.vlm_backbone_base import VLMBackboneCfg
+from RoboRenForce.networks.vlm.fusion_layers import FusionLayerCfg, FusionLayer
 
 
-@configclass
-class VLAActorCfg(ActorBaseCfg):
-    """
-    VLA Actor configuration.
-
-    Architecture:
-    1. System 2: VLM backbone (frozen) extracts VL features
-    2. Fusion: Combines VL features + proprioception
-    3. System 1: Action Expert predicts actions
-
-    Training strategy:
-    - Pretrain: Train fusion + action head, freeze VLM
-    - SFT: Fine-tune fusion + action head on task data
-    - RL Fine-tune: RL optimization with LoRA on action head
-    """
-
-    class_type: type["VLAActor"] = MISSING
-
-    # System 2: VLM backbone
-    vlm_backbone_cfg: VLMBackboneCfg = MISSING
-    freeze_vlm: bool = True
-
-    # Fusion layer
-    fusion_cfg: FusionLayerCfg = FusionLayerCfg()
-
-    # System 1: Action Expert
-    action_head_cfg: DiffusionActionHeadCfg = MISSING  # or RegressionActionHeadCfg
-
-    # Input modalities
-    use_proprioception: bool = True
-    use_text: bool = True
-
-
-class VLAActor(ActorBase):
+class VLAActor(ModuleBase):
     """
     VLA Actor implementation.
 
@@ -66,94 +42,86 @@ class VLAActor(ActorBase):
     1. VLM extracts VL features (frozen System 2)
     2. Fusion combines VL + proprioception
     3. Action head predicts actions (trainable System 1)
-
-    TODO Phase 2:
-    - [ ] Construct VLM backbone from config
-    - [ ] Construct fusion layer
-    - [ ] Construct action head
-    - [ ] Implement forward pass
-    - [ ] Handle freezing of VLM
-    - [ ] Support optional text input
     """
 
     def __init__(self, cfg: VLAActorCfg, dim_params: dict):
-        super().__init__(cfg, dim_params)
+        super().__init__()
+        self.cfg = cfg
 
-        # TODO: System 2 - VLM backbone
-        # self.vlm = cfg.vlm_backbone_cfg.construct_from_cfg()
-        # if cfg.freeze_vlm:
-        #     for param in self.vlm.parameters():
-        #         param.requires_grad = False
-        raise NotImplementedError("TODO: Construct VLM backbone")
+        # System 2: VLM backbone
+        self.vlm = cfg.vlm_backbone_cfg.construct_from_cfg()
+        if cfg.freeze_vlm:
+            for param in self.vlm.parameters():
+                param.requires_grad = False
 
-        # TODO: Fusion layer
-        # fusion_dim_params = {
-        #     "vl_feature_dim": self.vlm.output_dim,
-        #     "proprio_dim": dim_params.get("proprioception_dim", 0),
-        # }
-        # self.fusion = cfg.fusion_cfg.construct_from_cfg(fusion_dim_params)
-        raise NotImplementedError("TODO: Construct fusion layer")
+        # Fusion layer
+        vl_feature_dim = self.vlm.output_dim
+        proprio_dim = dim_params.get("proprioception_dim", 0)
 
-        # TODO: System 1 - Action Expert
-        # action_dim_params = {
-        #     "input_dim": self.fusion.output_dim,
-        #     "action_dim": dim_params["action_dim"],
-        # }
-        # self.action_head = cfg.action_head_cfg.construct_from_cfg(action_dim_params)
-        raise NotImplementedError("TODO: Construct action head")
+        if cfg.use_proprioception and proprio_dim > 0:
+            fusion_dim_params = {
+                "vl_feature_dim": vl_feature_dim,
+                "proprio_dim": proprio_dim,
+            }
+            self.fusion = cfg.fusion_cfg.construct_from_cfg(fusion_dim_params)
+            action_input_dim = self.fusion.output_dim
+        else:
+            self.fusion = None
+            action_input_dim = vl_feature_dim
+
+        # System 1: Action Expert
+        action_dim_params = {"input_dim": action_input_dim}
+        self.action_head = cfg.action_head_cfg.construct_from_cfg(action_dim_params)
 
     def forward(
         self,
         obs_dict: Dict[str, torch.Tensor],
+        target_actions: torch.Tensor = None,
         deterministic: bool = False,
-    ) -> torch.Tensor:
+    ):
         """
-        Forward pass through VLA.
+        Unified forward pass for both training and inference.
 
-        Args:
-            obs_dict: {
-                "image": (B, C, H, W),
-                "text": (B, max_text_len) or None,
-                "proprioception": (B, proprio_dim) or None,
-            }
-            deterministic: If True, use deterministic sampling (for eval)
+        When target_actions is provided, returns training output dict (for loss).
+        When target_actions is None, returns predicted actions tensor.
 
-        Returns:
-            actions: (B, action_dim) or (B, action_horizon, action_dim)
-
-        TODO:
-        - Extract VL features from VLM (with grad enabled/disabled based on freeze)
-        - Fuse VL features with proprioception
-        - Predict actions with action head
-        - Return actions
+        This design ensures DDP properly intercepts all forward computation.
         """
-        raise NotImplementedError("TODO: Implement VLA forward pass")
+        # System 2: VLM features (frozen or not)
+        with torch.set_grad_enabled(not self.cfg.freeze_vlm):
+            vl_features = self.vlm(
+                image=obs_dict["image"],
+                text=obs_dict.get("text", None) if self.cfg.use_text else None,
+            )
 
-        # Example structure:
-        # # System 2: VLM features (frozen or not)
-        # with torch.set_grad_enabled(not self.cfg.freeze_vlm):
-        #     vl_features = self.vlm(
-        #         image=obs_dict["image"],
-        #         text=obs_dict.get("text", None) if self.cfg.use_text else None,
-        #     )
-        #
-        # # Fusion
-        # if self.cfg.use_proprioception:
-        #     fused_features = self.fusion(vl_features, obs_dict["proprioception"])
-        # else:
-        #     fused_features = vl_features
-        #
-        # # System 1: Action prediction
-        # actions = self.action_head(fused_features, deterministic=deterministic)
-        #
-        # return actions
+        # Fusion
+        if self.fusion is not None and "proprioception" in obs_dict:
+            fused_features = self.fusion(vl_features, obs_dict["proprioception"])
+        else:
+            fused_features = vl_features
+
+        # System 1: Action prediction
+        if target_actions is not None:
+            return self.action_head.train_forward(fused_features, target_actions)
+        return self.action_head(fused_features, deterministic=deterministic)
+
+    def train_forward(self, obs_dict: Dict[str, torch.Tensor], target_actions: torch.Tensor) -> dict:
+        """Convenience wrapper — calls forward() with target_actions."""
+        return self.forward(obs_dict, target_actions=target_actions)
 
     def get_action(self, obs_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """
-        Get action for deployment (wrapper around forward).
-
-        TODO:
-        - Call forward with deterministic=True
-        - Return actions
-        """
         return self.forward(obs_dict, deterministic=True)
+
+
+@configclass
+class VLAActorCfg(ModuleBaseCfg):
+    """VLA Actor configuration."""
+
+    class_type: type[VLAActor] = VLAActor
+
+    vlm_backbone_cfg: VLMBackboneCfg = MISSING
+    freeze_vlm: bool = True
+    fusion_cfg: FusionLayerCfg = FusionLayerCfg()
+    action_head_cfg: ModuleBaseCfg = MISSING
+    use_proprioception: bool = True
+    use_text: bool = True
