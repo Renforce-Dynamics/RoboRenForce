@@ -33,10 +33,11 @@ ls -lh data/dummy_dataset/train/
 
 **输出**:
 ```
-✓ Dummy dataset created successfully!
+✓ Dummy dataset (LeRobot v2) created successfully!
 Location: data/dummy_dataset
 Episodes: 10
 Total frames: 500
+Format: LeRobot v2 (chunk-based)
 ```
 
 ### Step 3 (可选): 下载真实数据集

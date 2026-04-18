@@ -15,11 +15,12 @@ TODO Phase 1.1 (Week 1, Priority P0):
 """
 
 from typing import Dict, Optional
+from dataclasses import MISSING
 
 import torch
 import torchvision.transforms as T
 
-from RoboRenForce.utils.configclass import configclass, MISSING
+from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
 
 

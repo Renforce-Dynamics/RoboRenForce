@@ -22,7 +22,10 @@ data/assets/*
 pyrightconfig.json
 .docs/*
 .references/*
-.claude/*
+
 
 .cursor/*
 TODO*
+
+data/dummy_dataset
+data/lerobot
