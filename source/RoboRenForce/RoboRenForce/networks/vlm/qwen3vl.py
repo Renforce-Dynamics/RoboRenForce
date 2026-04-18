@@ -1,3 +1,4 @@
+from dataclasses import MISSING
 """
 Qwen3-VL Backbone Wrapper
 
@@ -19,7 +20,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from RoboRenForce.utils.configclass import configclass, MISSING
+from RoboRenForce.utils.configclass import configclass
 from .vlm_backbone_base import VLMBackbone, VLMBackboneCfg
 
 

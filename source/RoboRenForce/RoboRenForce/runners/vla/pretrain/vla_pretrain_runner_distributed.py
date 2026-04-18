@@ -1,3 +1,4 @@
+from dataclasses import MISSING
 """
 VLA Pretraining Runner (Multi-GPU DDP)
 
@@ -24,7 +25,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from RoboRenForce.utils.configclass import configclass, MISSING
+from RoboRenForce.utils.configclass import configclass
 from .vla_pretrain_runner import VLAPretrainRunner, VLAPretrainRunnerCfg
 
 

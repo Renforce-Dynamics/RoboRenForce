@@ -1,3 +1,4 @@
+from dataclasses import MISSING
 """
 VLA Pretraining Runner (Single-GPU)
 
@@ -22,7 +23,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from RoboRenForce.utils.configclass import configclass, MISSING
+from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.runners.base_runner import BaseRunner, BaseRunnerCfg
 from RoboRenForce.components.actor.vla_actor import VLAActorCfg
 from RoboRenForce.algorithms.vla_training.pretrain_algorithm import VLAPretrainAlgorithmCfg

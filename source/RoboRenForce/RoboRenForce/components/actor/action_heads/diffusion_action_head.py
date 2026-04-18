@@ -1,3 +1,4 @@
+from dataclasses import MISSING
 """
 Diffusion Action Head (System 1)
 
@@ -17,7 +18,7 @@ TODO Phase 2 (Week 2, Priority P0):
 import torch
 import torch.nn as nn
 
-from RoboRenForce.utils.configclass import configclass, MISSING
+from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
 
 

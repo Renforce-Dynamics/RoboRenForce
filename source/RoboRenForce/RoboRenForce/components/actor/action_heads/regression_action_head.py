@@ -1,3 +1,4 @@
+from dataclasses import MISSING
 """
 Regression Action Head (Baseline)
 
@@ -12,7 +13,7 @@ TODO Phase 2 (Week 2, Priority P1):
 import torch
 import torch.nn as nn
 
-from RoboRenForce.utils.configclass import configclass, MISSING
+from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
 from RoboRenForce.networks.mlp import MLP
 

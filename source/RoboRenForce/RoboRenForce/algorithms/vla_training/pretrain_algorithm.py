@@ -1,3 +1,4 @@
+from dataclasses import MISSING
 """
 VLA Pretraining Algorithm
 
@@ -16,7 +17,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from RoboRenForce.utils.configclass import configclass, MISSING
+from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.algorithms.algorithm_base import AlgorithmBase, AlgorithmBaseCfg
 
 

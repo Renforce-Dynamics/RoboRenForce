@@ -1,3 +1,4 @@
+from dataclasses import MISSING
 """
 VLA Actor (System 1 + System 2)
 
@@ -18,7 +19,7 @@ from typing import Dict, Optional
 import torch
 import torch.nn as nn
 
-from RoboRenForce.utils.configclass import configclass, MISSING
+from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.components.actor.actor_base import ActorBase, ActorBaseCfg
 from RoboRenForce.networks.vlm import VLMBackboneCfg, FusionLayerCfg
 from RoboRenForce.components.actor.action_heads import DiffusionActionHeadCfg

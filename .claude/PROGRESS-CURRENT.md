@@ -1,7 +1,8 @@
 # VLA实现当前进度报告
 
 **更新时间**: 2026-04-15  
-**当前阶段**: Phase 1 - 数据加载 + VLM实现
+**当前阶段**: Phase 1 - 数据加载 + VLM实现  
+**环境**: ✅ UV (Python 3.10.12)
 
 ---
 
@@ -42,11 +43,13 @@ Phase 4: DDP多卡训练      ░░░░░░░░░░░░░░░░�
   - 用途: Phase 1-4真实数据验证
 
 #### 3. 依赖安装 ✅
-- **RRF Conda环境**: 所有依赖统一安装在此环境
+- **环境管理器**: 已从Conda迁移到UV ⚡
+- **虚拟环境**: `.venv/` (uv管理)
+- **Python版本**: 3.10.12
 - **已安装包**:
-  - 数据处理: pandas, pyarrow, safetensors, huggingface_hub
-  - 深度学习: transformers, accelerate, qwen-vl-utils
-  - 工具: torch (已有)
+  - 核心: torch 2.11.0 (CUDA 13.0), transformers 5.5.4, einops 0.8.2
+  - 数据: pandas 2.3.3, pyarrow 23.0.1, safetensors 0.7.0
+  - 可选: peft 0.19.1 (LoRA), accelerate 1.13.0, av 17.0.0 (video)
 
 ---
 
@@ -83,6 +86,39 @@ Phase 4: DDP多卡训练      ░░░░░░░░░░░░░░░░�
 ✓ 数据形状正确: observation.state=(2,), action=(2,)
 ✓ 所有功能正常
 ```
+
+---
+
+### Phase 1.1.5: 环境迁移到UV (100%)
+
+#### 完成工作
+- **环境管理器迁移**: Conda → UV ✅
+  - 创建 `pyproject.toml` - 项目配置和依赖定义
+  - 创建 `.python-version` - Python版本锁定
+  - 更新 `.gitignore` - 添加uv相关条目
+  
+- **文档创建**: ✅
+  - `ENVIRONMENT-SETUP.md` - 完整UV使用指南
+  - `activate.sh` - 快速激活脚本
+  - `scripts/verify_environment.py` - 环境验证脚本
+
+- **依赖安装**: ✅
+  - 核心依赖: torch, transformers, einops等
+  - 可选依赖: peft (LoRA), accelerate, av (video)
+  - 总计: 101个包
+
+- **问题修复**: ✅
+  - 修复8个文件的MISSING导入问题
+  - 验证所有项目导入正常
+
+#### 环境对比
+
+| 特性 | UV | Conda |
+|------|-----|-------|
+| 安装速度 | ⚡ 极快 (Rust) | 🐢 较慢 |
+| 环境大小 | 📦 小 | 📦 大 |
+| 依赖解析 | ✅ 准确快速 | ⚠️ 较慢 |
+| 锁文件 | ✅ uv.lock | ❌ 无 |
 
 ---
 

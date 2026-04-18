@@ -1,31 +1,58 @@
 # IDEs
 .idea
+.vscode
+.cursor/*
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# uv package manager
+.uv/
+uv.lock
+
+# Conda
+.conda/
 
 # builds
 *.egg-info
+build/
+dist/
 
 # cache
-__pycache__
-.pytest_cache
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*$py.class
+*.so
 
-# vs code
-.vscode
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.coverage
+htmlcov/
 
 example/*
-
 test_env.yaml
 
+# Logs and data
 logs/
 *.hdf5
-
+data/dummy_dataset
+data/lerobot
 data/assets/*
+
+# Documentation and references
 pyrightconfig.json
 .docs/*
 .references/*
 
-
-.cursor/*
-TODO*
-
-data/dummy_dataset
-data/lerobot
+# Temporary files
+# TODO*
+*.tmp
+*.bak
+*~
