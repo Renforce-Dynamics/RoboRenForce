@@ -9,7 +9,7 @@ from dataclasses import MISSING
 
 from RoboRenForce import configclass
 from RoboRenForce.utils.logging import timeit
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 from RoboRenForce.algorithms.on_policy.ppo import PPO, PPOCfg
 from RoboRenForce.runners.world_model.world_model_runner import (
     WorldModelBasedRunner,

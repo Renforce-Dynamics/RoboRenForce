@@ -16,7 +16,7 @@ from RoboRenForce.runners.imitation.adversarial.amp_on_policy_runner import (
     AMPOnPolicyImitationRunnerCfg,
 )
 from RoboRenForce.runners.logger import LoggerBaseCfg
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 
 
 class AMPFinetuneImitationRunner(AMPOnPolicyImitationRunner):

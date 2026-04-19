@@ -1,2 +1,2 @@
-# Backward compatibility — canonical location is now prototype.embodied_ai
-from RoboRenForce.prototype.embodied_ai.dataset_entry import DatasetEntryCfg
+# Backward compatibility — canonical location is now prototype.embodied
+from RoboRenForce.prototype.embodied.dataset_entry import DatasetEntryCfg

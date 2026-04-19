@@ -14,7 +14,7 @@ from RoboRenForce.components.discriminator import Discriminator, DiscriminatorCf
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 from RoboRenForce.runners.base_runner import BaseRunner, BaseRunnerCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 
 from RoboRenForce.utils.normalizer import RunningMeanStd
 from RoboRenForce.utils.logging import timeit

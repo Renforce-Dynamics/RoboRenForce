@@ -8,7 +8,7 @@ from collections import deque
 from dataclasses import MISSING
 
 from RoboRenForce import configclass
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 from RoboRenForce.utils.logging import timeit
 from RoboRenForce.algorithms import AlgorithmBaseCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg

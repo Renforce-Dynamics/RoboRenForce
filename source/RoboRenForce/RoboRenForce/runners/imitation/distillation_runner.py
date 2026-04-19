@@ -13,7 +13,7 @@ from RoboRenForce.components.actor.student_teacher import StudentTeacher, Studen
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
 from RoboRenForce.runners.base_runner import BaseRunner, BaseRunnerCfg
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 
 
 class DistillationRunner(BaseRunner):

@@ -15,7 +15,7 @@ from RoboRenForce.runners.on_policy.on_policy_runner import (
     OnPolicyRunner,
     OnPolicyRunnerCfg,
 )
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 from RoboRenForce.algorithms.on_policy.sapg.exploration_coefficient import ExplorationCoefficientCfg
 from RoboRenForce.algorithms.on_policy.sapg.sapg_augmentation import SAPGBatchAugmenter
 from RoboRenForce.algorithms.on_policy.sapg.sapg_ppo import SAPGPPO

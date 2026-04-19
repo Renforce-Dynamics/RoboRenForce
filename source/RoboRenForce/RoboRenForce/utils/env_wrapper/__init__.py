@@ -1,11 +1,11 @@
 """Submodule defining the environment definitions.
 
 Canonical locations:
-- VecEnv abstract: RoboRenForce.prototype.gym
+- VecEnv abstract: RoboRenForce.prototype.classic
 - IsaacLab wrappers: RRF_isaaclab_tasks.env_wrapper
 """
 
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 
 # Lazy import for lab_wrapper — now lives in RRF_isaaclab_tasks
 def __getattr__(name):

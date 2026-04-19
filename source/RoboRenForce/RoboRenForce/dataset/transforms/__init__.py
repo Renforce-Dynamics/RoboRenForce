@@ -1,5 +1,5 @@
-# Backward compatibility — canonical location is now prototype.embodied_ai.transforms
-from RoboRenForce.prototype.embodied_ai.transforms import (
+# Backward compatibility — canonical location is now prototype.embodied.transforms
+from RoboRenForce.prototype.embodied.transforms import (
     DataTransform, DataTransformCfg,
     ComposeTransform, ComposeTransformCfg,
     NormalizeTransform, NormalizeTransformCfg,

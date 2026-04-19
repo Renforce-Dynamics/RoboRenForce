@@ -10,7 +10,7 @@ from dataclasses import MISSING
 
 from RoboRenForce.utils.logging import timeit
 from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 from RoboRenForce.runners.logger import LoggerBase, LoggerBaseCfg
 
 from RoboRenForce.components.normalizer import NormalizerBaseCfg

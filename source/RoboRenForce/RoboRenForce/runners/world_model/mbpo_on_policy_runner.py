@@ -20,7 +20,7 @@ from RoboRenForce.runners.world_model.world_model_runner import (
 )
 from RoboRenForce.algorithms.on_policy.mbpo.mbpo import MBPO, MBPOCfg
 from RoboRenForce.utils.template.module_base import ModuleBaseCfg
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 from RoboRenForce.algorithms.world_model_trainer.system_dynamics_trainer import (
     SystemDynamicsTrainer,
     SystemDynamicsTrainerCfg,

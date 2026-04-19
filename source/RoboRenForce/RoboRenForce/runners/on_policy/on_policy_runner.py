@@ -12,7 +12,7 @@ from RoboRenForce.algorithms import AlgorithmBaseCfg
 from RoboRenForce.components.actor_critic_pack import ActorCriticPackCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
 from RoboRenForce.runners.base_runner import BaseRunner, BaseRunnerCfg
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 
 from RoboRenForce.algorithms.on_policy.ppo import PPO, PPOCfg
 from RoboRenForce.components.normalizer import NormalizerBaseCfg

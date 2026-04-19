@@ -1,2 +1,2 @@
-# Backward compatibility — canonical location is now prototype.embodied_ai
-from RoboRenForce.prototype.embodied_ai.mixture import MixtureDataset, MixtureDatasetCfg, BatchMixtureSampler
+# Backward compatibility — canonical location is now prototype.embodied
+from RoboRenForce.prototype.embodied.mixture import MixtureDataset, MixtureDatasetCfg, BatchMixtureSampler

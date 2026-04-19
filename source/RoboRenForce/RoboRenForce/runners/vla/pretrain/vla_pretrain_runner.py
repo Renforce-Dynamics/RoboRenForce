@@ -32,7 +32,7 @@ from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
 from RoboRenForce.components.actor.vla_actor import VLAActorCfg
 from RoboRenForce.algorithms.vla_training.pretrain_algorithm import VLAPretrainAlgorithmCfg
-from RoboRenForce.prototype.embodied_ai.lerobot.lerobot_dataset import LeRobotDatasetCfg
+from RoboRenForce.prototype.embodied.lerobot.lerobot_dataset import LeRobotDatasetCfg
 
 
 class VLAPretrainRunner(ModuleBase):

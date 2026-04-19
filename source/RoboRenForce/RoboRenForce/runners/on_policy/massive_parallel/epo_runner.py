@@ -12,7 +12,7 @@ from RoboRenForce.components.actor_critic_pack import ActorCriticPackCfg
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
 
-from RoboRenForce.prototype.gym import RoboRenForceVecEnv
+from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 from RoboRenForce.utils.logging import timeit
 
 from RoboRenForce.algorithms.on_policy.epo.epo_observer import EPOObserver
