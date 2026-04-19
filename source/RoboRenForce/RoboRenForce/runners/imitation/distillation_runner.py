@@ -13,7 +13,7 @@ from RoboRenForce.components.actor.student_teacher import StudentTeacher, Studen
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
 from RoboRenForce.runners.base_runner import BaseRunner, BaseRunnerCfg
-from RoboRenForce.utils.env_wrapper import lab_wrapper
+from RoboRenForce.prototype.gym import RoboRenForceVecEnv
 
 
 class DistillationRunner(BaseRunner):
@@ -25,7 +25,7 @@ class DistillationRunner(BaseRunner):
     to match the teacher's actions.
     """
     
-    env: "lab_wrapper.RFDynamicEnvWrapper"
+    env: "RoboRenForceVecEnv"
     cfg: "DistillationRunnerCfg"
     alg: Distillation
     policy: StudentTeacher
@@ -33,7 +33,7 @@ class DistillationRunner(BaseRunner):
     def __init__(
         self,
         train_cfg: "DistillationRunnerCfg",
-        env: "lab_wrapper.RFDynamicEnvWrapper",
+        env: "RoboRenForceVecEnv",
         log_dir=None,
         device="cpu",
     ):

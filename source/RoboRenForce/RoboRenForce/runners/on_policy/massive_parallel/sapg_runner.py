@@ -15,7 +15,7 @@ from RoboRenForce.runners.on_policy.on_policy_runner import (
     OnPolicyRunner,
     OnPolicyRunnerCfg,
 )
-from RoboRenForce.utils.env_wrapper import lab_wrapper
+from RoboRenForce.prototype.gym import RoboRenForceVecEnv
 from RoboRenForce.algorithms.on_policy.sapg.exploration_coefficient import ExplorationCoefficientCfg
 from RoboRenForce.algorithms.on_policy.sapg.sapg_augmentation import SAPGBatchAugmenter
 from RoboRenForce.algorithms.on_policy.sapg.sapg_ppo import SAPGPPO
@@ -35,7 +35,7 @@ class SAPGOnPolicyRunner(OnPolicyRunner):
     def __init__(
         self,
         cfg: "SAPGOnPolicyRunnerCfg",
-        env: "lab_wrapper.RFDynamicEnvWrapper",
+        env: "RoboRenForceVecEnv",
         log_dir=None,
         device="cpu",
     ):

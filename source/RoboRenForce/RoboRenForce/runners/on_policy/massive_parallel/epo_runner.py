@@ -12,7 +12,7 @@ from RoboRenForce.components.actor_critic_pack import ActorCriticPackCfg
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
 
-from RoboRenForce.utils.env_wrapper import lab_wrapper
+from RoboRenForce.prototype.gym import RoboRenForceVecEnv
 from RoboRenForce.utils.logging import timeit
 
 from RoboRenForce.algorithms.on_policy.epo.epo_observer import EPOObserver
@@ -34,7 +34,7 @@ class EPOOnPolicyRunner(SAPGOnPolicyRunner):
     def __init__(
         self,
         cfg: "EPOOnPolicyRunnerCfg",
-        env: "lab_wrapper.RFDynamicEnvWrapper",
+        env: "RoboRenForceVecEnv",
         log_dir=None,
         device="cpu",
     ):

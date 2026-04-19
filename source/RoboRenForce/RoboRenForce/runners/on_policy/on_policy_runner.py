@@ -12,15 +12,15 @@ from RoboRenForce.algorithms import AlgorithmBaseCfg
 from RoboRenForce.components.actor_critic_pack import ActorCriticPackCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
 from RoboRenForce.runners.base_runner import BaseRunner, BaseRunnerCfg
-from RoboRenForce.utils.env_wrapper import lab_wrapper
+from RoboRenForce.prototype.gym import RoboRenForceVecEnv
 
 from RoboRenForce.algorithms.on_policy.ppo import PPO, PPOCfg
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 
 class OnPolicyRunner(BaseRunner):
-    env: "lab_wrapper.RFDynamicEnvWrapper"
+    env: "RoboRenForceVecEnv"
     cfg: "OnPolicyRunnerCfg"
-    def __init__(self, train_cfg: "OnPolicyRunnerCfg", env: "lab_wrapper.RFDynamicEnvWrapper", log_dir=None, device="cpu"):
+    def __init__(self, train_cfg: "OnPolicyRunnerCfg", env: "RoboRenForceVecEnv", log_dir=None, device="cpu"):
         self.alg_cfg: PPOCfg = train_cfg.algorithm
         self.policy_cfg = train_cfg.policy
         super().__init__(train_cfg=train_cfg, env=env, log_dir=log_dir, device=device)

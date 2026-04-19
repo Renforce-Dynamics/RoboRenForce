@@ -10,15 +10,15 @@ from dataclasses import MISSING
 
 from RoboRenForce.utils.logging import timeit
 from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
-from RoboRenForce.utils.env_wrapper import lab_wrapper
+from RoboRenForce.prototype.gym import RoboRenForceVecEnv
 from RoboRenForce.runners.logger import LoggerBase, LoggerBaseCfg
 
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 
 class BaseRunner(ModuleBase):
-    env: "lab_wrapper.RFDynamicEnvWrapper"
+    env: "RoboRenForceVecEnv"
     logger: "LoggerBase"
-    def __init__(self, train_cfg: "BaseRunnerCfg", env: "lab_wrapper.RFDynamicEnvWrapper", log_dir=None, device="cpu"):
+    def __init__(self, train_cfg: "BaseRunnerCfg", env: "RoboRenForceVecEnv", log_dir=None, device="cpu"):
         super().__init__()
         self.cfg = train_cfg
         self.device = device

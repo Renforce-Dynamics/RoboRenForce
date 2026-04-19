@@ -8,7 +8,7 @@ from collections import deque
 from dataclasses import MISSING
 
 from RoboRenForce import configclass
-from RoboRenForce.utils.env_wrapper import lab_wrapper
+from RoboRenForce.prototype.gym import RoboRenForceVecEnv
 from RoboRenForce.utils.logging import timeit
 from RoboRenForce.algorithms import AlgorithmBaseCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
@@ -19,11 +19,11 @@ from RoboRenForce.components.actor_critic_pack import ActorCriticPackCfg
 from RoboRenForce.components.normalizer import NormalizerBaseCfg, NormalizerEmpiricalCfg, ActionDenormalizerCfg
 
 class OffPolicyRunner(BaseRunner):
-    env: "lab_wrapper.RFDynamicEnvWrapper"
+    env: "RoboRenForceVecEnv"
     cfg: "OffPolicyRunnerCfg"
     replay_buffer: "replay_bundle.ReplayBufferBase"
     replay_cfg: "replay_bundle.ReplayBundle"
-    def __init__(self, train_cfg: "OffPolicyRunnerCfg", env: "lab_wrapper.RFDynamicEnvWrapper", log_dir=None, device="cpu"):
+    def __init__(self, train_cfg: "OffPolicyRunnerCfg", env: "RoboRenForceVecEnv", log_dir=None, device="cpu"):
         self.alg_cfg: SACCfg = train_cfg.algorithm
         self.policy_cfg = train_cfg.policy
         self.replay_cfg = train_cfg.replay_cfg

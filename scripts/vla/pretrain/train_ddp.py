@@ -39,7 +39,7 @@ from RoboRenForce.components.actor.action_heads.regression_action_head import Re
 from RoboRenForce.components.actor.action_heads.diffusion_action_head import DiffusionActionHeadCfg
 from RoboRenForce.components.actor.vla_actor import VLAActorCfg
 from RoboRenForce.algorithms.vla_training.pretrain_algorithm import VLAPretrainAlgorithmCfg
-from RoboRenForce.dataset.lerobot.lerobot_dataset import LeRobotDatasetCfg
+from RoboRenForce.prototype.embodied_ai.lerobot.lerobot_dataset import LeRobotDatasetCfg
 
 
 # ===== Mock VLM ===== #

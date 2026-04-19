@@ -16,13 +16,13 @@ from RoboRenForce.runners.imitation.adversarial.amp_on_policy_runner import (
     AMPOnPolicyImitationRunnerCfg,
 )
 from RoboRenForce.runners.logger import LoggerBaseCfg
-from RoboRenForce.utils.env_wrapper import lab_wrapper
+from RoboRenForce.prototype.gym import RoboRenForceVecEnv
 
 
 class AMPFinetuneImitationRunner(AMPOnPolicyImitationRunner):
     """AMP finetuning runner with residual KL reward to previous policy."""
 
-    env: "lab_wrapper.RFDynamicEnvWrapper"
+    env: "RoboRenForceVecEnv"
     cfg: "AMPFinetuneImitationRunnerCfg"
     alg: AMPPPO
     actor_critic: ActorCritic
@@ -30,7 +30,7 @@ class AMPFinetuneImitationRunner(AMPOnPolicyImitationRunner):
     def __init__(
         self,
         train_cfg: "AMPFinetuneImitationRunnerCfg",
-        env: "lab_wrapper.RFDynamicEnvWrapper",
+        env: "RoboRenForceVecEnv",
         log_dir=None,
         device: str = "cpu",
     ):

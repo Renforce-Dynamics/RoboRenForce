@@ -14,14 +14,14 @@ from RoboRenForce.components.discriminator import Discriminator, DiscriminatorCf
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 from RoboRenForce.runners.base_runner import BaseRunner, BaseRunnerCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
-from RoboRenForce.utils.env_wrapper import lab_wrapper
+from RoboRenForce.prototype.gym import RoboRenForceVecEnv
 
 from RoboRenForce.utils.normalizer import RunningMeanStd
 from RoboRenForce.utils.logging import timeit
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from RoboRenForce.utils.env_wrapper.lab_wrapper.adversarial_wrapper import (
+    from RRF_isaaclab_tasks.env_wrapper.adversarial_wrapper import (
         AMPEnvWrapper,
         MotionDataset,
         MotionDatasetCfg,
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 class AMPOnPolicyImitationRunner(BaseRunner):
     """On-policy runner for AMP-style adversarial PPO training."""
 
-    env: "lab_wrapper.RFDynamicEnvWrapper"
+    env: "RoboRenForceVecEnv"
     cfg: "AMPOnPolicyImitationRunnerCfg"
     alg: AMPPPO
     actor_critic: ActorCritic
@@ -38,7 +38,7 @@ class AMPOnPolicyImitationRunner(BaseRunner):
     def __init__(
         self,
         train_cfg: "AMPOnPolicyImitationRunnerCfg",
-        env: "lab_wrapper.RFDynamicEnvWrapper",
+        env: "RoboRenForceVecEnv",
         log_dir=None,
         device: str = "cpu",
     ):
