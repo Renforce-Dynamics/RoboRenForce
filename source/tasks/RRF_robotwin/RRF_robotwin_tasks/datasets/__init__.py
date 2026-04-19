@@ -1,9 +1,8 @@
-"""RoboTwin dataset entries.
-
-Each entry describes one dataset's metadata (path, format, robot, etc.).
-Used by MixtureDataset to compose training data.
-
-Example:
-    from RRF_robotwin_tasks.datasets import RoboTwinPickAppleCfg
-    entry = RoboTwinPickAppleCfg(data_root="/data/robotwin/pick_apple")
 """
+RoboTwin dataset entries.
+
+Each entry describes an offline demonstration dataset for a specific task.
+Datasets are typically collected via teleoperation and stored in LeRobot v2 format.
+"""
+
+from .robotwin_demo import RoboTwinDemoCfg
