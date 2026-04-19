@@ -33,6 +33,7 @@ from RoboRenForce.utils.template.module_base import ModuleBase, ModuleBaseCfg
 from RoboRenForce.components.actor.vla_actor import VLAActorCfg
 from RoboRenForce.algorithms.vla_training.pretrain_algorithm import VLAPretrainAlgorithmCfg
 from RoboRenForce.prototype.embodied.lerobot.lerobot_dataset import LeRobotDatasetCfg
+from RoboRenForce.prototype.embodied import BasePolicy
 
 
 class VLAPretrainRunner(ModuleBase):
@@ -83,16 +84,25 @@ class VLAPretrainRunner(ModuleBase):
             num_workers=0,
         )
 
-        # 2. Infer dimensions and construct VLA actor
-        dim_params = self._get_dim_params()
-        self.vla_actor = cfg.vla_actor_cfg.construct_from_cfg(dim_params)
+        # 2. Construct policy: either via model registry or VLAActorCfg
+        if cfg.model_type is not None:
+            from RRF_models import get_model
+            self.vla_actor = get_model(cfg.model_type, cfg=cfg.model_cfg)
+        elif cfg.vla_actor_cfg is not None:
+            dim_params = self._get_dim_params()
+            self.vla_actor = cfg.vla_actor_cfg.construct_from_cfg(dim_params)
+        else:
+            raise ValueError("Either model_type or vla_actor_cfg must be specified")
         self.vla_actor.to(device)
 
         # 3. Algorithm
         self.algorithm = cfg.algorithm_cfg.construct_from_cfg()
 
         # 4. Optimizer (only trainable params)
-        trainable_params = [p for p in self.vla_actor.parameters() if p.requires_grad]
+        if isinstance(self.vla_actor, BasePolicy):
+            trainable_params = list(self.vla_actor.trainable_parameters())
+        else:
+            trainable_params = [p for p in self.vla_actor.parameters() if p.requires_grad]
         self.optimizer = torch.optim.AdamW(
             trainable_params,
             lr=self.algorithm.cfg.learning_rate,
@@ -238,7 +248,11 @@ class VLAPretrainRunnerCfg(ModuleBaseCfg):
 
     class_type: type[VLAPretrainRunner] = VLAPretrainRunner
 
-    vla_actor_cfg: VLAActorCfg = None
+    # Model: use model_type (registry) OR vla_actor_cfg (direct)
+    model_type: str = None          # e.g. "qwen2vl", "mlp_baseline"
+    model_cfg: object = None        # config passed to get_model()
+    vla_actor_cfg: VLAActorCfg = None  # legacy: direct VLAActor config
+
     algorithm_cfg: VLAPretrainAlgorithmCfg = VLAPretrainAlgorithmCfg()
     dataset_cfg: object = None
 

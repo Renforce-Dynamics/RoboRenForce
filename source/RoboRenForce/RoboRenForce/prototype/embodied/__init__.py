@@ -11,8 +11,10 @@ Provides:
 - DatasetEntryCfg: dataset metadata (source, format, robot)
 - DataTransform: composable data transform pipeline
 - MixtureDataset: multi-dataset mixing
+- BasePolicy / ForwardType: unified policy interface for all training modes
 """
 
+from .base_policy import BasePolicy, ForwardType
 from .embodied_env import EmbodiedEnv
 from .embodied_data import EmbodiedOutput, Trajectory
 from .robot import Robot, RobotCfg

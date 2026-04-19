@@ -52,17 +52,37 @@ class VLAPretrainAlgorithm(ModuleBase):
         self._step = 0
 
     def compute_loss(self, batch: dict, vla_actor: nn.Module) -> dict:
+        """Compute loss. Supports both VLAActor and BasePolicy interfaces."""
+        from RoboRenForce.prototype.embodied import BasePolicy, ForwardType
+
+        target_actions = batch["action"]
+        if target_actions.ndim == 2:
+            target_actions = target_actions.unsqueeze(1)
+
+        # BasePolicy path: policy handles its own obs mapping and loss
+        if isinstance(vla_actor, BasePolicy):
+            obs = {}
+            if "image" in batch or "main_images" in batch:
+                obs["main_images"] = batch.get("main_images", batch.get("image"))
+            if "proprioception" in batch or "states" in batch:
+                obs["states"] = batch.get("states", batch.get("proprioception"))
+            if "text" in batch or "task_descriptions" in batch:
+                obs["task_descriptions"] = batch.get("task_descriptions", batch.get("text"))
+            result = vla_actor.forward(
+                ForwardType.PRETRAIN,
+                obs=obs,
+                target_actions=target_actions,
+            )
+            total_loss = self.cfg.action_loss_weight * result["loss"]
+            return {"total_loss": total_loss, "action_loss": result["loss"].detach()}
+
+        # VLAActor path (legacy): direct obs_dict + target_actions
         obs_dict = {"image": batch["image"]}
         if "proprioception" in batch:
             obs_dict["proprioception"] = batch["proprioception"]
         if "text" in batch:
             obs_dict["text"] = batch["text"]
 
-        target_actions = batch["action"]
-        if target_actions.ndim == 2:
-            target_actions = target_actions.unsqueeze(1)
-
-        # Use forward() with target_actions for DDP compatibility
         train_output = vla_actor(obs_dict, target_actions=target_actions)
 
         if "noise_pred" in train_output:
