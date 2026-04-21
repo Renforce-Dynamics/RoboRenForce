@@ -39,6 +39,10 @@ htmlcov/
 example/*
 test_env.yaml
 
+# Third-party cloned repos and checkpoints
+third_party/
+checkpoints/
+
 # Logs and data
 logs/
 *.hdf5

@@ -1,13 +1,27 @@
 """
-Config: place_empty_cup — PPO RL Fine-tuning
+Config: place_empty_cup — PPO/GRPO RL Fine-tuning
 
-RL fine-tuning on RoboTwin's place_empty_cup task using PPO.
+RL fine-tuning on RoboTwin's place_empty_cup task.
 Requires a pretrained checkpoint as initialization.
 
 Usage:
-    python -m RoboRenForce.runners.vla.rl.run --config \\
-        source/tasks/RRF_robotwin/RRF_robotwin_tasks/configs/place_empty_cup_ppo.py \\
-        --checkpoint checkpoints/place_empty_cup_pretrain/checkpoint_final.pt
+    # GRPO (default):
+    python scripts/vla/rl/train_robotwin_grpo.py \\
+        --task place_empty_cup --num_envs 8 --iterations 100
+
+    # PPO with value head:
+    python scripts/vla/rl/train_robotwin_grpo.py \\
+        --algo ppo --task place_empty_cup --num_envs 8
+
+    # With pretrained checkpoint:
+    python scripts/vla/rl/train_robotwin_grpo.py \\
+        --checkpoint checkpoints/vla_pretrain/checkpoint_final.pt \\
+        --task place_empty_cup
+
+Environment requirements:
+    export ASSETS_PATH=/path/to/RoboTwin
+    export PYTHONPATH=/path/to/RoboTwin:$PYTHONPATH
+    # SAPIEN 3 requires Vulkan GPU rendering
 """
 
 from RRF_robotwin_tasks.envs.robotwin_env import RoboTwinTaskConfig
@@ -31,9 +45,36 @@ def get_config():
         "center_crop": True,
     }
 
+    grpo_cfg = {
+        "group_size": 8,
+        "clip_ratio_low": 0.2,
+        "clip_ratio_high": 0.28,
+        "learning_rate": 1e-4,
+        "update_epochs": 4,
+        "kl_beta": 0.05,
+        "reward_coef": 1.0,
+    }
+
+    ppo_cfg = {
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "clip_ratio_low": 0.2,
+        "clip_ratio_high": 0.28,
+        "value_loss_coef": 0.5,
+        "learning_rate": 1e-4,
+        "update_epochs": 4,
+        "kl_beta": 0.0,
+    }
+
     return {
         "env_cfg": env_cfg,
-        "num_envs": 64,
+        "num_envs": 8,
         "model_type": "qwen2vl",
-        # TODO: complete when VLA RL runner is implemented
+        "model_name": "Qwen/Qwen2-VL-2B-Instruct",
+        "freeze_vlm": True,
+        "grpo_cfg": grpo_cfg,
+        "ppo_cfg": ppo_cfg,
+        "iterations": 100,
+        "checkpoint_dir": "checkpoints/rl/place_empty_cup",
+        "log_dir": "logs/rl/place_empty_cup",
     }

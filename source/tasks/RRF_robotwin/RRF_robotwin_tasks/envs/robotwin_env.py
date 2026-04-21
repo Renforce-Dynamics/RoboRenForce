@@ -160,6 +160,7 @@ class RoboTwinEnv(EmbodiedEnv):
             "embodiment": self.task_cfg.embodiment,
             "step_lim": self.task_cfg.step_lim,
             "domain_randomization": self.task_cfg.domain_randomization,
+            "save_path": str(Path(self.cfg.get("save_path", "/tmp/robotwin_logs"))),
         }
         if self.task_cfg.assets_path:
             task_config["assets_path"] = self.task_cfg.assets_path

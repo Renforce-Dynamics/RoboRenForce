@@ -168,7 +168,7 @@ def build_qwen2vl_config(args) -> VLAPretrainRunnerCfg:
 
     return VLAPretrainRunnerCfg(
         vla_actor_cfg=VLAActorCfg(
-            vlm_backbone_cfg=Qwen2VLCfg(model_name=args.model_name, freeze=True),
+            vlm_backbone_cfg=Qwen2VLCfg(model_name=args.model_name, freeze=True, device_map_auto=False),
             freeze_vlm=True,
             fusion_cfg=FusionLayerCfg(output_dim=512, hidden_dims=[512]),
             action_head_cfg=action_head_cfg,

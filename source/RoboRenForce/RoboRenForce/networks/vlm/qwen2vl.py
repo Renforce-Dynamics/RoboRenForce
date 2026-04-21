@@ -17,7 +17,12 @@ import warnings
 
 import torch
 import torch.nn as nn
-from transformers import AutoModelForCausalLM, AutoProcessor
+from transformers import AutoProcessor
+
+try:
+    from transformers import Qwen2VLForConditionalGeneration
+except ImportError:
+    from transformers import AutoModelForVision2Seq as Qwen2VLForConditionalGeneration
 
 from RoboRenForce.utils.configclass import configclass
 from .vlm_backbone_base import VLMBackbone, VLMBackboneCfg
@@ -46,7 +51,7 @@ class Qwen2VL(VLMBackbone):
         print(f"  Use LoRA: {cfg.use_lora}")
 
         # Load model with trust_remote_code (Qwen2-VL requires custom code)
-        self.model = AutoModelForCausalLM.from_pretrained(
+        self.model = Qwen2VLForConditionalGeneration.from_pretrained(
             cfg.model_name,
             torch_dtype=torch.bfloat16 if cfg.use_bf16 else torch.float32,
             device_map="auto" if cfg.device_map_auto else None,
@@ -60,7 +65,13 @@ class Qwen2VL(VLMBackbone):
         )
 
         # Get actual output dimension from model config
-        self.output_dim = self.model.config.hidden_size
+        model_cfg = self.model.config
+        if hasattr(model_cfg, 'hidden_size'):
+            self.output_dim = model_cfg.hidden_size
+        elif hasattr(model_cfg, 'text_config'):
+            self.output_dim = model_cfg.text_config.hidden_size
+        else:
+            self.output_dim = cfg.output_dim
         if self.output_dim != cfg.output_dim:
             warnings.warn(
                 f"Specified output_dim ({cfg.output_dim}) differs from model hidden_size ({self.output_dim}). "
@@ -101,11 +112,24 @@ class Qwen2VL(VLMBackbone):
                 "PEFT library not found. Install with: pip install peft"
             )
 
+    def _tensor_to_pil(self, images: torch.Tensor) -> list:
+        """Convert (B, C, H, W) tensor to list of PIL images."""
+        from PIL import Image
+        import numpy as np
+
+        images_np = images.detach().cpu().float().numpy()
+        if images_np.min() < 0:
+            images_np = (images_np + 1) / 2
+        images_np = (images_np.clip(0, 1) * 255).astype(np.uint8)
+        return [Image.fromarray(images_np[i].transpose(1, 2, 0)) for i in range(images_np.shape[0])]
+
     def forward(
         self,
-        images: torch.Tensor,
+        images: torch.Tensor = None,
         text: Optional[str] = None,
         return_dict: bool = False,
+        image: torch.Tensor = None,
+        **kwargs,
     ) -> torch.Tensor:
         """
         Extract VL features from Qwen2-VL.
@@ -118,50 +142,64 @@ class Qwen2VL(VLMBackbone):
         Returns:
             vl_features: (B, output_dim) VL feature tensor
         """
-        # Handle batch size
+        # Accept both 'images' and 'image' (VLAActor uses 'image')
+        if images is None:
+            images = image
+        if images is None:
+            raise ValueError("Either 'images' or 'image' must be provided")
+
         if isinstance(images, torch.Tensor):
             batch_size = images.shape[0]
+            pil_images = self._tensor_to_pil(images)
         else:
-            batch_size = len(images) if isinstance(images, list) else 1
+            pil_images = images if isinstance(images, list) else [images]
+            batch_size = len(pil_images)
 
-        # Prepare text (use default if None)
         if text is None:
-            text = ["Describe this image."] * batch_size
+            text_prompts = ["Describe this image."] * batch_size
         elif isinstance(text, str):
-            text = [text] * batch_size
+            text_prompts = [text] * batch_size
+        else:
+            text_prompts = list(text)
 
-        # Preprocess inputs
-        # Note: Qwen2-VL processor expects PIL images or image paths
-        # If we have tensors, we need to convert them
-        if isinstance(images, torch.Tensor):
-            # Convert tensor to PIL images (assuming normalized [0,1] or [-1,1])
-            from PIL import Image
-            import numpy as np
+        # Build Qwen2-VL message format and process
+        try:
+            from qwen_vl_utils import process_vision_info
+        except ImportError:
+            process_vision_info = None
 
-            # Denormalize if needed and convert to uint8
-            images_np = images.cpu().numpy()
-            if images_np.min() < 0:  # Assume [-1, 1] normalization
-                images_np = (images_np + 1) / 2
-            images_np = (images_np * 255).astype(np.uint8)
+        all_texts = []
+        all_image_inputs = []
 
-            # Convert to PIL (B, C, H, W) -> list of (H, W, C) PIL images
-            pil_images = []
-            for i in range(batch_size):
-                img_np = images_np[i].transpose(1, 2, 0)  # (C, H, W) -> (H, W, C)
-                pil_images.append(Image.fromarray(img_np))
+        for i in range(batch_size):
+            messages = [{
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": pil_images[i]},
+                    {"type": "text", "text": text_prompts[i]},
+                ],
+            }]
+            chat_text = self.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            all_texts.append(chat_text)
 
-            images = pil_images
+            if process_vision_info is not None:
+                img_inputs, _ = process_vision_info(messages)
+                all_image_inputs.extend(img_inputs)
+            else:
+                all_image_inputs.append(pil_images[i])
 
-        # Process inputs with Qwen2-VL processor
         inputs = self.processor(
-            images=images,
-            text=text,
-            return_tensors="pt",
+            text=all_texts,
+            images=all_image_inputs,
             padding=True,
+            return_tensors="pt",
         )
 
         # Move to model device
-        inputs = {k: v.to(self.model.device) if isinstance(v, torch.Tensor) else v
+        model_device = next(self.model.parameters()).device
+        inputs = {k: v.to(model_device) if isinstance(v, torch.Tensor) else v
                   for k, v in inputs.items()}
 
         # Forward pass
@@ -172,23 +210,14 @@ class Qwen2VL(VLMBackbone):
                 return_dict=True,
             )
 
-        # Extract features from last hidden state
-        # Shape: (B, seq_len, hidden_dim)
         hidden_states = outputs.hidden_states[-1]
 
-        # Pool features (use last token or mean pooling)
         if self.cfg.pooling_method == "last":
-            # Use last token
             vl_features = hidden_states[:, -1, :]
         elif self.cfg.pooling_method == "mean":
-            # Mean pooling over sequence
             vl_features = hidden_states.mean(dim=1)
         else:
             raise ValueError(f"Unknown pooling method: {self.cfg.pooling_method}")
-
-        # Shape: (B, output_dim)
-        assert vl_features.shape == (batch_size, self.output_dim), \
-            f"Expected shape ({batch_size}, {self.output_dim}), got {vl_features.shape}"
 
         if return_dict:
             return {
