@@ -130,8 +130,11 @@ class Qwen3VLPolicy(BasePolicy):
         obs_dict = self._map_obs(obs)
         pred_actions = self.actor.action_head(features)
 
-        action_diff = actions.unsqueeze(1) - pred_actions if actions.dim() < pred_actions.dim() else actions - pred_actions
-        logprobs = -0.5 * (action_diff ** 2).sum(dim=-1).mean(dim=-1)
+        if actions is not None:
+            action_diff = actions.unsqueeze(1) - pred_actions if actions.dim() < pred_actions.dim() else actions - pred_actions
+            logprobs = -0.5 * (action_diff ** 2).sum(dim=-1).mean(dim=-1)
+        else:
+            logprobs = -0.5 * (pred_actions ** 2).sum(dim=-1).mean(dim=-1)
 
         result = {"logprobs": logprobs, "pred_actions": pred_actions}
         if self.value_head is not None:

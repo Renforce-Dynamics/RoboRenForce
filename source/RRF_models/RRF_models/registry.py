@@ -76,9 +76,9 @@ def list_models() -> list[str]:
 _KNOWN_MODELS = {
     "qwen2vl": "RRF_models.qwen2vl",
     "qwen3vl": "RRF_models.qwen3vl",
+    "openpi": "RRF_models.openpi",
+    "gr00t": "RRF_models.gr00t",
     "mlp_baseline": "RRF_models.mlp_baseline",
-    # "openpi": "RRF_models.openpi",
-    # "gr00t": "RRF_models.gr00t",
 }
 
 
