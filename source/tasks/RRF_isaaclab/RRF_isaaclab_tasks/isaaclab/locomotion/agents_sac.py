@@ -44,7 +44,7 @@ class LocoRLCfgBase(runners.OffPolicyRunnerCfg):
         )
     )
     # ---- SAC Algorithm Parameters ----
-    algorithm=algorithms.SACTransCfg(
+    algorithm=algorithms.SACCfg(
         gamma=0.99,
         tau=0.05,
         actor_lr=3e-4,

@@ -20,7 +20,7 @@ from RoboRenForce.components.actor_critic_pack import ActorCriticPackCfg
 from RoboRenForce.buffer import PipeBufferTransitionCfg, replay_bundle, DirectTransitionBuffer, DirectTransitionBufferCfg
 from RoboRenForce.components.actor import SACActorCfg, StateIndStdActorCfg
 from RoboRenForce.components.critic import MultiQNetworkCfg, VNetworkCfg, GaussianQNetworkCfg
-from RoboRenForce.algorithms.off_policy.sac import SACCfg, SACTransCfg
+from RoboRenForce.algorithms.off_policy.sac import SACCfg
 from RoboRenForce.algorithms.on_policy.ppo import PPOCfg
 from RoboRenForce.algorithms.off_policy.dsac import DSACCfg, DSACTCfg
 from RoboRenForce.networks.mlp import MLPCfg
@@ -91,7 +91,7 @@ class SACRunnerCfg(OffPolicyRunnerCfg):
             )
         )
     )
-    algorithm = SACTransCfg(
+    algorithm = SACCfg(
         gamma              = 0.99,
         tau                = 0.005,
         actor_lr           = 3e-4,

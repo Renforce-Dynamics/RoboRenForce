@@ -73,7 +73,7 @@ class OffPolicyRunner(BaseRunner):
             collection_time = sample_infos["collection_time"]
 
             if not self.replay_buffer.is_warmingup():
-                alg_update_infos = self.update(show_pbar=True)
+                alg_update_infos = self.update()
                 learn_time = alg_update_infos["learn_time"]
             else:
                 alg_update_infos = {}
