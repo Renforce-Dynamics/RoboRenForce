@@ -9,4 +9,4 @@ from .estimator import *
 from .discriminator import Discriminator, DiscriminatorCfg
 
 
-from . import world_models
+from . import nn_models

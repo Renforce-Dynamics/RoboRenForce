@@ -181,23 +181,62 @@ python scripts/data/rlds_to_lerobot.py --input rlds_data/ --output data/lerobot/
 
 ---
 
-## Algorithms
+## Supported Algorithms
 
-| Category | Algorithm | Runner | Reference |
-|----------|-----------|--------|-----------|
-| **On-Policy** | PPO | `OnPolicyRunner` | [ppo.py](source/RoboRenForce/RoboRenForce/algorithms/on_policy/ppo.py) |
-| | CAPS-PPO / L2C2-PPO / Lips-PPO | `OnPolicyRunner` | [smooth.py](source/RoboRenForce/RoboRenForce/algorithms/on_policy/smooth.py) |
-| | SAPG-PPO | `SAPGOnPolicyRunner` | [sapg/](source/RoboRenForce/RoboRenForce/algorithms/on_policy/sapg/) |
-| | MBPO | `MBPOOnPolicyRunner` | [mbpo/](source/RoboRenForce/RoboRenForce/algorithms/on_policy/mbpo/) |
-| **Off-Policy** | SAC | `OffPolicyRunner` | [sac/](source/RoboRenForce/RoboRenForce/algorithms/off_policy/sac/) |
-| | DSAC | `OffPolicyRunner` | [dsac/](source/RoboRenForce/RoboRenForce/algorithms/off_policy/dsac/) |
-| **VLA Training** | Pretrain (SL) | `VLAPretrainRunner` | [pretrain_algorithm.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/pretrain_algorithm.py) |
-| | SFT (KL reg.) | `VLASFTRunner` | [sft.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/sft.py) |
-| | GRPO | `VLAGRPORunner` | [grpo.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/grpo.py) |
-| | PPO (GAE) | `VLAPPORunner` | [ppo.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/ppo.py) |
-| | IQL / DAgger / SAC | — | [iql.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/iql.py), [dagger.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/dagger.py), [sac.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/sac.py) |
-| **World Model** | Dynamics / Flow | `WorldModelBasedRunner` | [world_model/](source/RoboRenForce/RoboRenForce/runners/world_model/) |
-| **Imitation** | Distillation | `DistillationRunner` | [imitation/](source/RoboRenForce/RoboRenForce/runners/imitation/) |
+### Online RL — agent interacts with simulator, maximizes reward
+
+| Algorithm | Type | Input | Runner | Reference |
+|-----------|------|-------|--------|-----------|
+| PPO | On-policy, GAE | State | `OnPolicyRunner` | [ppo.py](source/RoboRenForce/RoboRenForce/algorithms/on_policy/ppo.py) |
+| CAPS-PPO | On-policy, smooth | State | `OnPolicyRunner` | [CAPS.py](source/RoboRenForce/RoboRenForce/algorithms/smooth/CAPS.py) |
+| L2C2-PPO | On-policy, smooth | State | `OnPolicyRunner` | [L2C2.py](source/RoboRenForce/RoboRenForce/algorithms/smooth/L2C2.py) |
+| Lips-PPO | On-policy, Lipschitz | State | `OnPolicyRunner` | [Lips.py](source/RoboRenForce/RoboRenForce/algorithms/smooth/Lips.py) |
+| SAPG-PPO | On-policy, self-adaptive | State | `SAPGOnPolicyRunner` | [sapg/](source/RoboRenForce/RoboRenForce/algorithms/on_policy/sapg/) |
+| EPO | On-policy, exploration | State | `EPOOnPolicyRunner` | [epo/](source/RoboRenForce/RoboRenForce/algorithms/on_policy/epo/) |
+| SAC | Off-policy, entropy-reg | State | `OffPolicyRunner` | [sac/](source/RoboRenForce/RoboRenForce/algorithms/off_policy/sac/) |
+| SAC-Seq | Off-policy, sequential | State | `OffPolicyRunner` | [sac_seq.py](source/RoboRenForce/RoboRenForce/algorithms/off_policy/sac/sac_seq.py) |
+| SAC-Trans | Off-policy, transformer | State | `OffPolicyRunner` | [sac_trans.py](source/RoboRenForce/RoboRenForce/algorithms/off_policy/sac/sac_trans.py) |
+| DSAC / DSACT | Off-policy, distributional | State | `OffPolicyRunner` | [dsac/](source/RoboRenForce/RoboRenForce/algorithms/off_policy/dsac/) |
+
+### Offline RL — learns from fixed dataset, no environment interaction
+
+| Algorithm | Type | Input | Runner | Reference |
+|-----------|------|-------|--------|-----------|
+| IQL | Implicit Q-Learning | State | `OfflineRunnerBase` | [iql.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/iql.py) |
+
+### VLA Pretrain (SL) — supervised learning on demonstration data
+
+| Algorithm | Type | Input | Runner | Reference |
+|-----------|------|-------|--------|-----------|
+| VLA Pretrain | Behavior cloning (L1/MSE) | Image + Language + State | `VLAPretrainRunner` | [pretrain_algorithm.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/pretrain_algorithm.py) |
+| SFT | Supervised fine-tuning (KL reg.) | Image + Language + State | `VLASFTRunner` | [sft.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/sft.py) |
+| DAgger | Online imitation + expert intervention | Image + Language + State | — | [dagger.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/dagger.py) |
+
+### VLA RL Fine-tune — online RL with VLM policy backbone
+
+| Algorithm | Type | Input | Runner | Reference |
+|-----------|------|-------|--------|-----------|
+| GRPO | Group Relative Policy Opt | Image + Language + State | `VLAGRPORunner` | [grpo.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/grpo.py) |
+| VLA-PPO | PPO over VLM backbone | Image + Language + State | `VLAPPORunner` | [ppo.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/ppo.py) |
+| VLA-SAC | SAC over VLM backbone | Image + Language + State | — | [sac.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/sac.py) |
+
+### NN Model-Based — learn dynamics model, plan or augment policy
+
+| Algorithm | Type | Input | Runner | Reference |
+|-----------|------|-------|--------|-----------|
+| MBPO | Model-Based Policy Opt | State | `MBPOOnPolicyRunner` | [mbpo/](source/RoboRenForce/RoboRenForce/algorithms/on_policy/mbpo/) |
+| System Dynamics (MLP) | Forward model f(s,a)→s' | State | `OfflineRunnerBase` | [system_dynamics_mlp.py](source/RoboRenForce/RoboRenForce/components/nn_models/system_dynamics/system_dynamics_mlp.py) |
+| System Dynamics (Transformer) | Forward model f(s,a)→s' | State | `OfflineRunnerBase` | [system_dynamics_transformer.py](source/RoboRenForce/RoboRenForce/components/nn_models/system_dynamics/system_dynamics_transformer.py) |
+| TD-MPC / TD-MPC2 | Latent dynamics + planning | State | `NNModelBasedRunner` | [tdmpcs/](source/RoboRenForce/RoboRenForce/components/nn_models/tdmpcs/) |
+| Belief Flow Model | Belief state dynamics | State | `FlowModelRunner` | [belief_flow_model/](source/RoboRenForce/RoboRenForce/components/nn_models/belief_flow_model/) |
+
+### Imitation Learning — learn from expert demonstrations or motions
+
+| Algorithm | Type | Input | Runner | Reference |
+|-----------|------|-------|--------|-----------|
+| GAIL + PPO | Adversarial IL | State | `OnPolicyRunner` | [gail_ppo.py](source/RoboRenForce/RoboRenForce/algorithms/imitation/adverserial/gail_ppo.py) |
+| AMP + PPO | Adversarial Motion Priors | State | `OnPolicyRunner` | [amp_ppo.py](source/RoboRenForce/RoboRenForce/algorithms/imitation/adverserial/amp_ppo.py) |
+| Distillation | Knowledge transfer | State | — | [distillation.py](source/RoboRenForce/RoboRenForce/algorithms/imitation/distillation.py) |
 
 ---
 
@@ -339,12 +378,12 @@ RoboRenForce/
 │   │       │   ├── on_policy/          #   PPO, MBPO, SAPG, smooth variants
 │   │       │   ├── off_policy/         #   SAC, DSAC
 │   │       │   ├── vla_training/       #   Pretrain, SFT, GRPO, PPO, IQL, DAgger
-│   │       │   └── world_model_trainer/
+│   │       │   └── nn_model_trainer/
 │   │       ├── runners/                # Training loops
 │   │       │   ├── on_policy/          #   OnPolicyRunner, SAPG, EPO
 │   │       │   ├── off_policy/         #   OffPolicyRunner
 │   │       │   ├── vla/               #   Pretrain, SFT, GRPO (+ DDP variants)
-│   │       │   └── world_model/        #   MBPO, Flow model
+│   │       │   └── nn_model_based/   #   MBPO, Flow model
 │   │       ├── networks/               # Neural network modules
 │   │       │   ├── vlm/               #   Qwen2-VL, Qwen3-VL, OpenPI, GR00T
 │   │       │   ├── transformer/       #   Transformer backbone

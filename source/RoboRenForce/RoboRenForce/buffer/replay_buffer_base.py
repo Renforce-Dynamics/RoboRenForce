@@ -30,7 +30,7 @@ class ReplayBufferBase(ClassTemplateBase):
             
         Notes:
             The buffer is construct at shape (B, L, D).
-            Where the L is the chunck size for world model max prediction.
+            Where the L is the chunck size for nn model max prediction.
         """
         super().__init__()
         # Ensure no variable is None during initialization

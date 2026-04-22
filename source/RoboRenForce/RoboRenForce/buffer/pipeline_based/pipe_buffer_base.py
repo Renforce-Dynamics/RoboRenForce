@@ -37,7 +37,7 @@ class PipeBufferBase(ReplayBufferBase):
             
         Notes:
             The buffer is construct at shape (B, L, D).
-            Where the L is the chunck size for world model max prediction.
+            Where the L is the chunck size for nn model max prediction.
         """
         super().__init__(cfg, device)
         # Ensure no variable is None during initialization

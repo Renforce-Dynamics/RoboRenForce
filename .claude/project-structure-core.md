@@ -45,7 +45,7 @@ algorithms/
 │   ├── CAPS.py                   # Constraint-based smoothing
 │   ├── L2C2.py                   # Lipschitz control
 │   └── Lips.py                   # Lipschitz regularization
-└── world_model_trainer/
+└── nn_model_trainer/
     ├── flow_model_trainer.py     # Flow-based dynamics
     └── system_dynamics_trainer.py # System identification
 ```
@@ -239,8 +239,8 @@ components/
 │   ├── normalizer_base.py
 │   ├── normalizer_empirical.py
 │   └── running_scale.py
-├── world_models/
-│   ├── world_model_base.py
+├── nn_models/
+│   ├── nn_model_base.py
 │   ├── system_dynamics/
 │   ├── belief_flow_model/
 │   └── tdmpcs/
@@ -474,10 +474,10 @@ dataset/
 ├── data_loader/
 │   ├── offline_data_loader_base.py
 │   ├── hdf5_data_loader_base.py
-│   └── world_model/
+│   └── nn_model/
 └── data_wrapper/
     ├── offline_data_wrapper_base.py
-    └── world_model_data_wrapper.py
+    └── nn_model_data_wrapper.py
 ```
 
 ### 4.2 VLA Datasets (New)
@@ -838,13 +838,13 @@ runners/
 │   └── off_policy_runner.py     # SAC, etc.
 ├── offline/
 │   ├── offline_runner_base.py
-│   └── world_model/
+│   └── nn_model/
 ├── imitation/
 │   ├── distillation_runner.py
 │   └── adversarial/
-├── world_model/
+├── nn_model/
 │   ├── flow_model_runner.py
-│   ├── world_model_runner.py
+│   ├── nn_model_runner.py
 │   └── mbpo_on_policy_runner.py
 └── logger/
     ├── logger_base.py

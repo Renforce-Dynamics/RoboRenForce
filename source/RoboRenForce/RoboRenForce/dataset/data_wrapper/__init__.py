@@ -2,14 +2,14 @@ from .offline_data_wrapper_base import (
     OfflineDataWrapperBase,
     OfflineDataWrapperBaseCfg,
 )
-from .world_model_data_wrapper import (
-    WorldModelDataWrapper,
-    WorldModelDataWrapperCfg,
+from .nn_model_data_wrapper import (
+    NNModelDataWrapper,
+    NNModelDataWrapperCfg,
 )
 
 __all__ = [
     "OfflineDataWrapperBase",
     "OfflineDataWrapperBaseCfg",
-    "WorldModelDataWrapper",
-    "WorldModelDataWrapperCfg",
+    "NNModelDataWrapper",
+    "NNModelDataWrapperCfg",
 ]
