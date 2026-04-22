@@ -97,7 +97,8 @@ class VLAPretrainDDPRunner:
 
     def __init__(self, args):
         # DDP setup
-        dist.init_process_group(backend="nccl")
+        from datetime import timedelta
+        dist.init_process_group(backend="nccl", timeout=timedelta(minutes=30))
         self.rank = dist.get_rank()
         self.world_size = dist.get_world_size()
         self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -161,7 +162,7 @@ class VLAPretrainDDPRunner:
             vlm_cfg = MockVLMCfg(output_dim=256)
         else:
             from RoboRenForce.networks.vlm.qwen2vl import Qwen2VLCfg
-            vlm_cfg = Qwen2VLCfg(model_name=args.model_name, freeze=True)
+            vlm_cfg = Qwen2VLCfg(model_name=args.model_name, freeze=True, device_map_auto=False)
 
         action_head_cfg = RegressionActionHeadCfg(
             action_dim=args.action_dim, action_horizon=1, hidden_dims=[256, 256],
@@ -179,7 +180,13 @@ class VLAPretrainDDPRunner:
             use_proprioception=True,
         )
 
-        self.vla_actor = actor_cfg.construct_from_cfg(dim_params)
+        # Serialize model loading: rank 0 first to populate HF cache, then others
+        if self.rank == 0:
+            self.vla_actor = actor_cfg.construct_from_cfg(dim_params)
+        dist.barrier()
+        if self.rank != 0:
+            self.vla_actor = actor_cfg.construct_from_cfg(dim_params)
+        dist.barrier()
         self.vla_actor.to(self.device)
 
         # Wrap with DDP
@@ -293,17 +300,19 @@ class VLAPretrainDDPRunner:
 
     @torch.no_grad()
     def _validate(self) -> float:
-        self.vla_actor.eval()
+        # Use unwrapped module to avoid DDP deadlock (only rank 0 validates)
+        raw_model = self.vla_actor.module if hasattr(self.vla_actor, 'module') else self.vla_actor
+        raw_model.eval()
         total_loss = 0.0
         n_batches = 0
 
         for batch in self.val_loader:
             batch = self._to_device(batch)
-            loss_dict = self.algorithm.compute_loss(batch, self.vla_actor)
+            loss_dict = self.algorithm.compute_loss(batch, raw_model)
             total_loss += loss_dict["total_loss"].item()
             n_batches += 1
 
-        self.vla_actor.train()
+        raw_model.train()
         return total_loss / max(1, n_batches)
 
     def _save_checkpoint(self, tag=None):
