@@ -2,10 +2,10 @@
 Config: D4RL Walker2d-Medium — Offline RL with IQL
 
 Reference config for Implicit Q-Learning on walker2d-medium-v2.
+D4RL is an offline RL benchmark — learns from a fixed dataset (no env interaction).
+Uses OfflineRunnerBase which calls gather() from dataset + update() with IQL loss.
 
-Usage:
-    python scripts/renforce/train_gym.py --task walker2d-medium-v2 \\
-        --algo iql --max_iterations 1000000
+This is NOT online RL (train_gym.py) and NOT VLA pretrain (no images/language).
 """
 
 
