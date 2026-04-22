@@ -217,13 +217,17 @@ See [docs/models.md](docs/models.md) for full details.
 
 ## Supported Environments
 
-| Platform | Package | Robots | Tasks | Script |
-|----------|---------|--------|-------|--------|
-| **MJLab** (MuJoCo Warp) | [`RRF_mjlab`](source/tasks/RRF_mjlab/) | Go1, G1 | Velocity tracking (flat/rough) | [`train_mjlab.py`](scripts/renforce/train_mjlab.py) |
-| **Isaac Lab** (Isaac Sim) | [`RRF_isaaclab`](source/tasks/RRF_isaaclab/) | A1, Go1, Go2, Anymal B/C/D, H1, G1 | Locomotion (flat/rough), Manipulation | [`train_lab.py`](scripts/renforce/train_lab.py) |
-| **RoboTwin** (SAPIEN3) | [`RRF_robotwin`](source/tasks/RRF_robotwin/) | Piper, ALOHA | 60+ manipulation tasks | [`train_robotwin_grpo.py`](scripts/vla/rl/train_robotwin_grpo.py) |
-| **Humanoid Psi0** | [`RRF_humanoid_psi0`](source/tasks/RRF_humanoid_psi0/) | G1 Dex3 | 14 offline tasks | Offline runner |
-| **Gymnasium** | Built-in | — | Classic control, MuJoCo | [`train_gym.py`](scripts/renforce/train_gym.py) |
+| Platform | Package | Robots / Tasks | Type | Script |
+|----------|---------|----------------|------|--------|
+| **MJLab** (MuJoCo Warp) | [`RRF_mjlab`](source/tasks/RRF_mjlab/) | Go1, G1 — velocity tracking (flat/rough) | Locomotion | [`train_mjlab.py`](scripts/renforce/train_mjlab.py) |
+| **Isaac Lab** (Isaac Sim) | [`RRF_isaaclab`](source/tasks/RRF_isaaclab/) | A1, Go1, Go2, Anymal B/C/D, H1, G1 | Locomotion | [`train_lab.py`](scripts/renforce/train_lab.py) |
+| **RoboTwin** (SAPIEN3) | [`RRF_robotwin`](source/tasks/RRF_robotwin/) | Piper, ALOHA — 60+ manipulation tasks | VLA RL | [`train_robotwin_grpo.py`](scripts/vla/rl/train_robotwin_grpo.py) |
+| **LIBERO** | [`RRF_libero`](source/tasks/RRF_libero/) | Franka — 10/90/130 manipulation tasks | VLA Pretrain/RL | via RLinf bridge |
+| **ManiSkill** | [`RRF_maniskill`](source/tasks/RRF_maniskill/) | Franka — GPU-accelerated manipulation | VLA Pretrain/RL | via RLinf bridge |
+| **CALVIN** | [`RRF_calvin`](source/tasks/RRF_calvin/) | Franka — 5-subtask long-horizon eval | VLA Pretrain/RL | via RLinf bridge |
+| **D4RL** | [`RRF_d4rl`](source/tasks/RRF_d4rl/) | Walker2d, Hopper, HalfCheetah | Offline RL | via RLinf bridge |
+| **Humanoid Psi0** | [`RRF_humanoid_psi0`](source/tasks/RRF_humanoid_psi0/) | G1 Dex3 — 14 offline tasks | Offline | Offline runner |
+| **Gymnasium** | Built-in | Classic control, MuJoCo | RL Baseline | [`train_gym.py`](scripts/renforce/train_gym.py) |
 
 ---
 
