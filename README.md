@@ -2,257 +2,452 @@
 
 <div align="center">
 
-**A flexible and modular reinforcement learning framework for robotics, with a focus on world models and model-based policy optimization.**
+**Modular RL & VLA Framework for Robotics — from Locomotion to Vision-Language-Action**
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-BSD--3-green.svg)](LICENSE)
+[![Isaac Lab](https://img.shields.io/badge/Isaac%20Lab-0.21+-orange.svg)](https://github.com/isaac-sim/Isaac-Lab)
+[![MJLab](https://img.shields.io/badge/MJLab-MuJoCo%20Warp-purple.svg)](https://github.com/mujocolab/mjlab)
 
 </div>
 
----
-
-## 🚀 Overview
-
-RoboRenForce is a comprehensive reinforcement learning framework designed for robotics applications, with special emphasis on world model learning and model-based policy optimization (MBPO). The framework provides seamless integration with **Isaac Gym** and **Isaac Lab**, making it ideal for training and evaluating policies on various robotic tasks.
-
-### Key Features
-
-- 🌍 **World Model Support**: Flexible world model architecture for model-based RL
-- 🤖 **Multi-Environment Support**: Native support for Isaac Gym and Isaac Lab environments
-- 📊 **Multiple Algorithms**: Implementation of PPO, SAC, DSAC, and MBPO
-- 🔄 **On-Policy & Off-Policy**: Support for both on-policy and off-policy training paradigms
-- 🎯 **Robotics Focus**: Pre-configured tasks for locomotion and manipulation
-- 🧩 **Modular Design**: Clean separation of components (runners, algorithms, networks, buffers)
-- 📈 **Comprehensive Logging**: Built-in TensorBoard and Tqdm-style logging
+RoboRenForce is a unified framework that covers the full robotics RL pipeline: classic locomotion control (PPO/SAC on Isaac Lab, MJLab, Gymnasium), vision-language-action model training (Qwen2-VL, Qwen3-VL, OpenPI, GR00T), and multi-stage learning (pretrain → SFT → RL fine-tuning). Everything is driven by a composable `@configclass` system and a consistent wrapper chain across simulators.
 
 ---
 
-## 📦 Installation
+## Architecture
 
-### Prerequisites
+```
+┌─────────────────────────── RoboRenForce ───────────────────────────┐
+│                                                                     │
+│  System 2 (VLM Backbone)     System 1 (Action Expert)     System 0 │
+│  ┌───────────────────┐       ┌──────────────────┐       ┌────────┐ │
+│  │ Qwen2-VL / Qwen3  │──────▶│ Regression Head  │──────▶│ Loco   │ │
+│  │ OpenPI / GR00T    │       │ Diffusion Head   │       │ Policy │ │
+│  │ (frozen / LoRA)   │       │ Flow-Match Head  │       │ (Psi0) │ │
+│  └───────────────────┘       └──────────────────┘       └────────┘ │
+│           ▲                          ▲                       ▲      │
+│     observations               configclass               env API   │
+│           │                          │                       │      │
+│  ┌────────┴──────────────────────────┴───────────────────────┴────┐ │
+│  │              Environment Wrapper Chain                         │ │
+│  │  Isaac Lab ─┐                                                 │ │
+│  │  MJLab     ─┤─▶ VecEnv ─▶ DynamicEnv ─▶ GroupVecWrapper     │ │
+│  │  RoboTwin  ─┤                                                 │ │
+│  │  Gymnasium ─┘                                                 │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-- Python 3.8 or higher
-- CUDA-capable GPU (recommended)
-- [Isaac Lab](https://github.com/isaac-sim/Isaac-Lab) or [Isaac Gym](https://developer.nvidia.com/isaac-gym) installed
+---
 
-### Setup
+## Installation
 
-1. Clone the repository:
 ```bash
 git clone <repository-url>
 cd RoboRenForce
-```
 
-2. Install dependencies and setup external modules:
-```bash
+# Core framework
+pip install -e source/RoboRenForce
+
+# Task packages (install what you need)
+pip install -e source/tasks/RRF_isaaclab    # Isaac Lab locomotion/manipulation
+pip install -e source/tasks/RRF_mjlab       # MJLab (MuJoCo Warp) locomotion
+pip install -e source/tasks/RRF_robotwin    # RoboTwin manipulation
+pip install -e source/tasks/RRF_humanoid_psi0  # Humanoid offline tasks
+
+# External setup (robot assets, etc.)
 bash scripts/setup_ext.sh
 ```
 
-This script will:
-- Clone required repositories (assetslib, robotlib)
-- Install local packages in editable mode
+<details>
+<summary><b>VLA model setup (optional)</b></summary>
 
-3. Install the package:
 ```bash
-pip install -e source/RoboRenForce
-pip install -e source/RRF_isaaclab_tasks  # Optional: for demo tasks
+# Download VLM weights
+bash scripts/models/setup_models.sh qwen2vl    # Qwen2-VL 2B (~4.2GB)
+bash scripts/models/setup_models.sh qwen3vl    # Qwen3-VL 2B
+bash scripts/models/setup_models.sh openpi     # OpenPI pi0.5 4B
+bash scripts/models/setup_models.sh groot      # GR00T N1.7 3B
+
+# Or install dependencies only
+pip install "transformers>=4.37" qwen-vl-utils accelerate peft
 ```
+
+See [docs/models.md](docs/models.md) for per-model details, VRAM requirements, and usage examples.
+
+</details>
+
+<details>
+<summary><b>MJLab simulator setup</b></summary>
+
+```bash
+# Clone and install MJLab
+git clone https://github.com/mujocolab/mjlab.git
+pip install -e mjlab
+
+# Requires: mujoco>=3.7.0, mujoco-warp>=3.7.0.1, warp-lang>=1.12.0
+```
+
+</details>
 
 ---
 
-## 🏃 Quick Start
+## Quick Start
 
-### Training on Isaac Lab
+### Locomotion Training (MJLab)
 
-Train a locomotion task using MBPO:
+```bash
+# Go1 quadruped on flat terrain — PPO
+python scripts/renforce/train_mjlab.py \
+    --task Mjlab-Velocity-Flat-Unitree-Go1 \
+    --num_envs 4096 --device cuda:0
+
+# G1 humanoid on rough terrain
+python scripts/renforce/train_mjlab.py \
+    --task Mjlab-Velocity-Rough-Unitree-G1 \
+    --num_envs 2048 --max_iterations 30000
+```
+
+### Locomotion Training (Isaac Lab)
 
 ```bash
 python scripts/renforce/train_lab.py \
-    --task Isaac-UnitreeA1-Rough-v0 \
-    --num_envs 4096 \
-    --seed 42
+    --task RoboRenForce-AFR-UnitreeGo1Flat-PPO \
+    --num_envs 4096 --headless
 ```
 
-### Training on Isaac Gym / Gymnasium
-
-Train a standard Gymnasium environment:
+### VLA Pretraining
 
 ```bash
-python scripts/renforce/train_gym.py \
-    --task Pendulum-v1 \
-    --seed 42 \
-    --rldevice cuda:0
+# Single GPU
+python scripts/vla/pretrain/train_single_gpu.py \
+    --model_name Qwen/Qwen2-VL-2B-Instruct \
+    --dataset_path data/my_dataset --epochs 20
+
+# Multi-GPU DDP
+torchrun --nproc_per_node=4 scripts/vla/pretrain/train_ddp.py \
+    --model_name Qwen/Qwen2-VL-2B-Instruct \
+    --dataset_path data/my_dataset --epochs 20
 ```
 
-### Evaluation / Playback
-
-Evaluate a trained policy:
+### VLA RL Fine-tuning (GRPO / PPO)
 
 ```bash
+python scripts/vla/rl/train_robotwin_grpo.py \
+    --task close_laptop_lid --algo grpo --num_envs 32
+```
+
+<details>
+<summary><b>More examples: SFT, evaluation, data pipeline</b></summary>
+
+**Supervised Fine-tuning (SFT)**
+```bash
+# Single GPU
+python scripts/vla/post_train/train_sft.py \
+    --model_name Qwen/Qwen2-VL-2B-Instruct \
+    --dataset_path data/my_dataset --epochs 5
+
+# Multi-GPU
+torchrun --nproc_per_node=2 scripts/vla/post_train/train_sft_ddp.py \
+    --model_name Qwen/Qwen2-VL-2B-Instruct \
+    --dataset_path data/my_dataset
+```
+
+**Evaluation / Playback**
+```bash
+# MJLab
+python scripts/renforce/play_mjlab.py \
+    --target logs/RFRL/mjlab_go1/model_5000.pt --num_envs 64
+
+# Isaac Lab
 python scripts/renforce/play_lab.py \
-    --task Isaac-UnitreeA1-Rough-v0 \
-    --target <path-to-checkpoint> \
-    --video  # Optional: record video
+    --target logs/RFRL/go1_ppo/model_5000.pt --video
 ```
 
----
+**Data Conversion**
+```bash
+# Download LeRobot dataset
+python scripts/data/download_lerobot_dataset.py --repo lerobot/aloha_sim
 
-## 📚 Documentation
+# Isaac Lab trajectories → LeRobot format
+python scripts/data/isaaclab_to_lerobot.py --input traj/ --output data/lerobot/
 
-### Core Components
+# RLDS → LeRobot
+python scripts/data/rlds_to_lerobot.py --input rlds_data/ --output data/lerobot/
+```
 
-- **Runners**: Training and evaluation orchestration
-  - `OnPolicyRunner`: For on-policy algorithms (PPO, MBPO)
-  - `OffPolicyRunner`: For off-policy algorithms (SAC, DSAC)
-  - `MBPOOnPolicyRunner`: Model-based policy optimization runner
-
-- **Algorithms**: RL algorithm implementations
-  - **On-Policy**: PPO, MBPO
-  - **Off-Policy**: SAC, DSAC
-
-- **World Models**: Model-based RL components
-  - Base world model architecture
-  - System dynamics models
-  - Planning and inference utilities
-
-- **Environment Wrappers**: Environment adapters
-  - `RFImagineEnvWrapper`: World model imagination wrapper
-  - `RFDynamicEnvWrapper`: Dynamic environment wrapper
-  - `SimpleGymWrapper`: Gymnasium environment wrapper
-
-### World Model Terminology
-
-For detailed information about world model terminology and data pipeline, see [World Model Documentation](docs/world_model.md).
-
-Key concepts:
-- **Observations**: `policy`, `critic`, `dynamic` observation spaces
-- **Rewards**: Shaped reward tensors and multi-dimensional reward vectors
-- **Terminations**: Timeout and termination signals
-- **Masks**: Validity masks for transitions
+</details>
 
 ---
 
-## 🎯 Supported Tasks
+## Algorithms
 
-### Isaac Lab Tasks
-
-The framework includes pre-configured tasks for various robots:
-
-- **Quadrupeds**: Unitree A1, Go1, Go2; Anymal B/C/D
-- **Humanoids**: H1
-- **Environments**: Rough terrain, flat terrain locomotion
-
-See `source/RRF_isaaclab_tasks/RRF_isaaclab_tasks/isaaclab/locomotion/` for task definitions.
-
-### Gymnasium Tasks
-
-Standard Gymnasium environments are supported:
-- Classic control: Pendulum, CartPole, etc.
-- MuJoCo: HalfCheetah, Walker2d, etc.
+| Category | Algorithm | Runner | Reference |
+|----------|-----------|--------|-----------|
+| **On-Policy** | PPO | `OnPolicyRunner` | [ppo.py](source/RoboRenForce/RoboRenForce/algorithms/on_policy/ppo.py) |
+| | CAPS-PPO / L2C2-PPO / Lips-PPO | `OnPolicyRunner` | [smooth.py](source/RoboRenForce/RoboRenForce/algorithms/on_policy/smooth.py) |
+| | SAPG-PPO | `SAPGOnPolicyRunner` | [sapg/](source/RoboRenForce/RoboRenForce/algorithms/on_policy/sapg/) |
+| | MBPO | `MBPOOnPolicyRunner` | [mbpo/](source/RoboRenForce/RoboRenForce/algorithms/on_policy/mbpo/) |
+| **Off-Policy** | SAC | `OffPolicyRunner` | [sac/](source/RoboRenForce/RoboRenForce/algorithms/off_policy/sac/) |
+| | DSAC | `OffPolicyRunner` | [dsac/](source/RoboRenForce/RoboRenForce/algorithms/off_policy/dsac/) |
+| **VLA Training** | Pretrain (SL) | `VLAPretrainRunner` | [pretrain_algorithm.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/pretrain_algorithm.py) |
+| | SFT (KL reg.) | `VLASFTRunner` | [sft.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/sft.py) |
+| | GRPO | `VLAGRPORunner` | [grpo.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/grpo.py) |
+| | PPO (GAE) | `VLAPPORunner` | [ppo.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/ppo.py) |
+| | IQL / DAgger / SAC | — | [iql.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/iql.py), [dagger.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/dagger.py), [sac.py](source/RoboRenForce/RoboRenForce/algorithms/vla_training/sac.py) |
+| **World Model** | Dynamics / Flow | `WorldModelBasedRunner` | [world_model/](source/RoboRenForce/RoboRenForce/runners/world_model/) |
+| **Imitation** | Distillation | `DistillationRunner` | [imitation/](source/RoboRenForce/RoboRenForce/runners/imitation/) |
 
 ---
 
-## 🏗️ Project Structure
+## Supported VLM Backbones
+
+| Model | Params | Output Dim | Action Heads | License |
+|-------|--------|-----------|--------------|---------|
+| [Qwen2-VL](https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct) | 2B / 7B | 1536 | Regression, Diffusion | Apache 2.0 |
+| [Qwen3-VL](https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct) | 2B / 8B | 2048 | Regression, Diffusion | Apache 2.0 |
+| [OpenPI (pi0.5)](https://huggingface.co/lerobot/pi05_base) | 4B | 2048 | Flow Matching | Apache 2.0 + Gemma |
+| [GR00T N1.7](https://huggingface.co/nvidia/GR00T-N1.7-3B) | 3B | 2048 | DiT | Apache 2.0 |
+| MLP Baseline | ~1M | 64 | Regression | Built-in |
+
+See [docs/models.md](docs/models.md) for full details.
+
+---
+
+## Supported Environments
+
+| Platform | Package | Robots | Tasks | Script |
+|----------|---------|--------|-------|--------|
+| **MJLab** (MuJoCo Warp) | [`RRF_mjlab`](source/tasks/RRF_mjlab/) | Go1, G1 | Velocity tracking (flat/rough) | [`train_mjlab.py`](scripts/renforce/train_mjlab.py) |
+| **Isaac Lab** (Isaac Sim) | [`RRF_isaaclab`](source/tasks/RRF_isaaclab/) | A1, Go1, Go2, Anymal B/C/D, H1, G1 | Locomotion (flat/rough), Manipulation | [`train_lab.py`](scripts/renforce/train_lab.py) |
+| **RoboTwin** (SAPIEN3) | [`RRF_robotwin`](source/tasks/RRF_robotwin/) | Piper, ALOHA | 60+ manipulation tasks | [`train_robotwin_grpo.py`](scripts/vla/rl/train_robotwin_grpo.py) |
+| **Humanoid Psi0** | [`RRF_humanoid_psi0`](source/tasks/RRF_humanoid_psi0/) | G1 Dex3 | 14 offline tasks | Offline runner |
+| **Gymnasium** | Built-in | — | Classic control, MuJoCo | [`train_gym.py`](scripts/renforce/train_gym.py) |
+
+---
+
+## Configuration System
+
+All components are configured via `@configclass` — a decorator that extends Python dataclasses with type validation, serialization, and factory construction.
+
+<details>
+<summary><b>Example: defining a custom PPO config</b></summary>
+
+```python
+from RoboRenForce import configclass
+from RoboRenForce import runners, algorithms, components, networks
+
+@configclass
+class MyLocoPPOCfg(runners.OnPolicyRunnerCfg):
+    seed = 42
+    num_steps_per_env = 24
+    max_iterations = 10000
+    experiment_name = "my_experiment"
+
+    policy = components.ActorCriticPackCfg(
+        actor_cfg=components.StateIndStdActorCfg(
+            backbone_cfg=networks.MLPCfg(
+                hidden_features=[512, 256, 128],
+                activations=[[('ELU', {})]] * 3 + [[]]
+            ),
+            use_log_std=False
+        ),
+        critic_cfg=components.VNetworkCfg(
+            backbone_cfg=networks.MLPCfg(
+                hidden_features=[512, 256, 128],
+                activations=[[('ELU', {})]] * 3 + [[]]
+            )
+        )
+    )
+
+    algorithm = algorithms.PPOCfg(
+        clip_param=0.2,
+        entropy_coef=0.01,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+    )
+```
+
+</details>
+
+<details>
+<summary><b>Example: registering a task with gymnasium</b></summary>
+
+```python
+import gymnasium as gym
+
+gym.register(
+    id="RoboRenForce-MyTask-PPO",
+    entry_point="mjlab.envs:ManagerBasedRlEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": my_env_cfg,
+        "RoboRenForce_entry_point": MyLocoPPOCfg(),
+    },
+)
+```
+
+</details>
+
+<details>
+<summary><b>Example: environment wrapper chain</b></summary>
+
+```python
+from mjlab.envs import ManagerBasedRlEnv
+from RRF_mjlab_tasks.mjlab_utils import (
+    RoboRenForceMJLabEnvWrapper,   # Base: obs remapping, step adaptation
+    MJLabDynamicEnvWrapper,         # + reward/command extraction, dim_params
+    MJLabGroupVecWrapper,           # + train/eval env partitioning
+)
+
+env = ManagerBasedRlEnv(cfg=my_cfg, device="cuda:0")
+wrapped = MJLabDynamicEnvWrapper(env)
+
+print(wrapped.num_envs)       # 4096
+print(wrapped.dim_params)     # {'policy_dim': 48, 'critic_dim': 72, ...}
+obs, extras = wrapped.reset() # obs: (4096, 48)
+```
+
+</details>
+
+---
+
+## Project Structure
 
 ```
 RoboRenForce/
 ├── source/
-│   ├── RoboRenForce/          # Main framework
-│   │   ├── algorithms/       # RL algorithms (PPO, SAC, MBPO, etc.)
-│   │   ├── runners/          # Training runners
-│   │   ├── components/       # Networks, actors, critics, world models
-│   │   ├── buffer/           # Replay buffers and data pipelines
-│   │   └── utils/            # Utilities and wrappers
-│   ├── RRF_isaaclab_tasks/           # Task definitions
-│   └── robotlib/             # Robot configuration library
+│   ├── RoboRenForce/                   # Core framework
+│   │   └── RoboRenForce/
+│   │       ├── algorithms/             # RL algorithms
+│   │       │   ├── on_policy/          #   PPO, MBPO, SAPG, smooth variants
+│   │       │   ├── off_policy/         #   SAC, DSAC
+│   │       │   ├── vla_training/       #   Pretrain, SFT, GRPO, PPO, IQL, DAgger
+│   │       │   └── world_model_trainer/
+│   │       ├── runners/                # Training loops
+│   │       │   ├── on_policy/          #   OnPolicyRunner, SAPG, EPO
+│   │       │   ├── off_policy/         #   OffPolicyRunner
+│   │       │   ├── vla/               #   Pretrain, SFT, GRPO (+ DDP variants)
+│   │       │   └── world_model/        #   MBPO, Flow model
+│   │       ├── networks/               # Neural network modules
+│   │       │   ├── vlm/               #   Qwen2-VL, Qwen3-VL, OpenPI, GR00T
+│   │       │   ├── transformer/       #   Transformer backbone
+│   │       │   └── mlp.py, vae/, moe.py, fft_filter.py
+│   │       ├── components/             # Actors, critics, normalizers
+│   │       │   ├── actor/             #   Gaussian, SAC, Lipschitz, VLA actors
+│   │       │   ├── critic/            #   V-net, Q-net, distributional
+│   │       │   └── normalizer/        #   Empirical normalizer
+│   │       ├── buffer/                 # Replay buffers & rollout storage
+│   │       └── utils/                  # Config system, env wrappers, tools
+│   │           ├── configclass/       #   @configclass decorator
+│   │           └── env_wrapper/       #   Lab, Gym, VLA wrapper chains
+│   └── tasks/                          # Task packages
+│       ├── RRF_isaaclab/              #   Isaac Lab locomotion & manipulation
+│       ├── RRF_mjlab/                 #   MJLab (MuJoCo Warp) locomotion
+│       ├── RRF_robotwin/              #   RoboTwin 60+ manipulation tasks
+│       └── RRF_humanoid_psi0/         #   Humanoid offline datasets
 ├── scripts/
-│   └── renforce/             # Training and evaluation scripts
-├── data/                     # Data and assets
-└── logs/                     # Training logs and checkpoints
+│   ├── renforce/                       # Standard RL training & evaluation
+│   │   ├── train_lab.py               #   Isaac Lab training
+│   │   ├── train_mjlab.py             #   MJLab training
+│   │   ├── train_gym.py               #   Gymnasium training
+│   │   ├── play_lab.py                #   Isaac Lab evaluation
+│   │   └── play_mjlab.py              #   MJLab evaluation
+│   ├── vla/                            # VLA model training
+│   │   ├── pretrain/                  #   Single-GPU & DDP pretraining
+│   │   ├── post_train/                #   SFT (single & DDP)
+│   │   └── rl/                        #   GRPO / PPO fine-tuning
+│   └── data/                           # Dataset tools
+│       ├── download_lerobot_dataset.py
+│       ├── isaaclab_to_lerobot.py
+│       └── rlds_to_lerobot.py
+├── docs/
+│   ├── models.md                       # VLM backbone details & setup
+│   └── BENCHMARK_PLAN.md              # Benchmark experiment specs
+└── tests/                              # Test suites
 ```
 
 ---
 
-## 🔧 Configuration
+## Multi-GPU Training (DDP)
 
-RoboRenForce uses a configuration-based approach. Tasks and agents are configured via config classes:
+RoboRenForce supports distributed training via PyTorch DDP for VLA workloads:
 
-```python
-from RoboRenForce import configclass
-from RoboRenForce.runners import MBPOOnPolicyRunnerCfg
+```bash
+# VLA Pretraining — 4 GPUs
+torchrun --nproc_per_node=4 scripts/vla/pretrain/train_ddp.py \
+    --model_name Qwen/Qwen2-VL-2B-Instruct \
+    --dataset_path data/humanoid_psi0 --epochs 20
 
-@configclass
-class MyTaskCfg(MBPOOnPolicyRunnerCfg):
-    experiment_name = "my_experiment"
-    max_iterations = 1000
-    # ... configure policy, algorithm, etc.
+# VLA SFT — 2 GPUs
+torchrun --nproc_per_node=2 scripts/vla/post_train/train_sft_ddp.py \
+    --model_name Qwen/Qwen2-VL-2B-Instruct \
+    --dataset_path data/my_dataset
 ```
 
-See example configurations in `source/RRF_isaaclab_tasks/` for reference.
+<details>
+<summary><b>DDP implementation details</b></summary>
+
+- Serialized model loading (rank 0 first, then barrier) to avoid HuggingFace cache races
+- 30-minute NCCL timeout for large model initialization
+- `device_map_auto=False` for DDP compatibility (no model sharding)
+- Unwrapped model for validation (avoids DDP deadlock on single-rank validation)
+- `DistributedSampler` with proper epoch shuffling
+
+</details>
 
 ---
 
-## 🤝 Contributing
+## Benchmark Results
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+See [docs/BENCHMARK_PLAN.md](docs/BENCHMARK_PLAN.md) for the full experiment matrix.
 
----
-
-## 📝 License
-
-This project is licensed under the BSD-3 License - see the LICENSE file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- Built with alignment to `rsl_rl` conventions
-- Supports diffusion-guided generation for world models
-- Inspired by TD-MPC2 and other model-based RL approaches
+| Paradigm | Algorithm | Status |
+|----------|-----------|--------|
+| Pretrain (SL) | VLAPretrainAlgorithm | Verified (single + 8-GPU DDP) |
+| Pretrain (DDP) | VLAPretrainAlgorithm | Verified (8-GPU) |
+| SFT | SFTAlgorithm (KL reg.) | Verified (single + 2-GPU DDP) |
+| GRPO | GRPOAlgorithm | Verified |
+| PPO (GAE) | PPOAlgorithm | Verified |
+| Locomotion PPO | PPO (MJLab Go1) | Verified (H100, 1100 steps/s) |
 
 ---
 
-## 📖 Additional Resources
+## Scripts Reference
 
-- [World Model Documentation](docs/world_model.md) - Detailed world model terminology and pipeline
-- [Training Data Pipeline](docs/data_pipeline.md) - Data flow and processing
-- [RobotLib](source/robotlib/README.md) - Robot configuration library
-
----
-
-## 🔗 Related Projects
-
-- [RobotLib](https://github.com/Renforce-Dynamics/robotlib) - Universal robot asset and configuration hub
-- [AssetsLib](https://github.com/Renforce-Dynamics/assetslib) - Robot assets repository
-
----
-
-## 📧 Contact
-
-- Maintainer: Ziang Zheng
-- Email: ziang_zheng@foxmail.com
+| Script | Purpose | Docs |
+|--------|---------|------|
+| [`train_mjlab.py`](scripts/renforce/train_mjlab.py) | Train on MJLab environments | `--help` for all options |
+| [`train_lab.py`](scripts/renforce/train_lab.py) | Train on Isaac Lab environments | Requires Isaac Sim |
+| [`train_gym.py`](scripts/renforce/train_gym.py) | Train on Gymnasium/MuJoCo | Standard envs |
+| [`play_mjlab.py`](scripts/renforce/play_mjlab.py) | Evaluate MJLab checkpoint | |
+| [`play_lab.py`](scripts/renforce/play_lab.py) | Evaluate Isaac Lab checkpoint | Video recording |
+| [`train_single_gpu.py`](scripts/vla/pretrain/train_single_gpu.py) | VLA pretraining (1 GPU) | |
+| [`train_ddp.py`](scripts/vla/pretrain/train_ddp.py) | VLA pretraining (multi-GPU) | Use with `torchrun` |
+| [`train_sft.py`](scripts/vla/post_train/train_sft.py) | VLA supervised fine-tuning | |
+| [`train_robotwin_grpo.py`](scripts/vla/rl/train_robotwin_grpo.py) | VLA RL (GRPO/PPO) on RoboTwin | `--algo grpo/ppo` |
 
 ---
 
-## 🗺️ Roadmap
+## Acknowledgments
 
-### Completed ✅
-- [x] World model offline trainer (full version)
-- [x] World model runner with on-policy algorithm
-- [x] Evaluation with each term
-- [x] Input with policy obs while loss logits with world model obs (Dynamic terms)
-
-### In Progress 🚧
-- [ ] Observation normalization for world model
-- [ ] Evaluation inference for world model planner
-- [ ] Fully offline training
-- [ ] Distributional modeling for latent variables
-- [ ] Additional task support
+- Built with alignment to [rsl_rl](https://github.com/leggedrobotics/rsl_rl) conventions
+- Isaac Lab integration via [Isaac Lab](https://github.com/isaac-sim/Isaac-Lab)
+- MJLab integration via [MJLab](https://github.com/mujocolab/mjlab) (MuJoCo Warp)
+- VLM backbones from [HuggingFace](https://huggingface.co/) ecosystem
+- Data format compatible with [LeRobot](https://github.com/huggingface/lerobot)
 
 ---
 
-<div align="center">
+## License
 
-**Made with ❤️ for the robotics RL community**
+BSD-3-Clause. See [LICENSE](LICENSE) for details.
 
-</div>
+## Contact
+
+- Maintainer: Ziang Zheng — ziang_zheng@foxmail.com
