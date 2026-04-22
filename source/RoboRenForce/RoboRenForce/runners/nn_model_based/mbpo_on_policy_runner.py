@@ -14,7 +14,7 @@ from RoboRenForce.components.actor_critic_pack import ActorCriticPackCfg
 from RoboRenForce.components.normalizer import NormalizerBaseCfg
 from RoboRenForce.components.nn_models.system_dynamics import SystemDynamicsMLPCfg
 from RoboRenForce.runners.logger import LoggerBaseCfg
-from RoboRenForce.runners.nn_model.nn_model_runner import (
+from RoboRenForce.runners.nn_model_based.nn_model_based_runner import (
     NNModelBasedRunner,
     NNModelBasedRunnerCfg,
 )

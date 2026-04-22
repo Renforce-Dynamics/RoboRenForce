@@ -14,17 +14,17 @@ from RoboRenForce.dataset.data_wrapper.offline_data_wrapper_base import (
 from dataclasses import MISSING
 
 
-class WorldModelDataWrapper(OfflineDataWrapperBase):
+class NNModelDataWrapper(OfflineDataWrapperBase):
     """World model data wrapper.
     
     Used for nn model training. Provides batches of (s, a, r, s', done) sequences.
     """
     
-    cfg: "WorldModelDataWrapperCfg"
+    cfg: "NNModelDataWrapperCfg"
     
     def __init__(
         self,
-        cfg: "WorldModelDataWrapperCfg",
+        cfg: "NNModelDataWrapperCfg",
         data_loader,
         device: str = "cpu",
     ):
@@ -166,10 +166,10 @@ class WorldModelDataWrapper(OfflineDataWrapperBase):
 
 
 @configclass
-class WorldModelDataWrapperCfg(OfflineDataWrapperBaseCfg):
+class NNModelDataWrapperCfg(OfflineDataWrapperBaseCfg):
     """Configuration for nn model data wrapper."""
     
-    class_type: type[WorldModelDataWrapper] = WorldModelDataWrapper
+    class_type: type[NNModelDataWrapper] = NNModelDataWrapper
     
     sequence_length: int = 1
     """Sequence length for nn model training."""

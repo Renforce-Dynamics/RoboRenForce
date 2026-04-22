@@ -1,4 +1,4 @@
-from .nn_model_runner import (
+from .nn_model_based_runner import (
     NNModelBasedRunner,
     NNModelBasedRunnerCfg
 )

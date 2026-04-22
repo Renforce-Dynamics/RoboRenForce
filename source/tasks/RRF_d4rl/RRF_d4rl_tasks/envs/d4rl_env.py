@@ -1,21 +1,21 @@
 """
 D4RL Environment Wrapper for RoboRenForce
 
-Wraps RLinf's D4RLEnv behind the RoboRenForceVecEnv interface.
+Directly wraps D4RL offline RL benchmark behind RoboRenForceVecEnv.
+No dependency on RLinf — uses upstream d4rl + gymnasium directly.
 
-D4RL is a state-only offline RL benchmark — no images, no task descriptions.
-This wrapper uses the classic VecEnv interface (tensor obs) rather than
-EmbodiedEnv (multimodal obs).
+D4RL is state-only (no images) — uses classic VecEnv interface.
 
 Supported tasks:
     walker2d-medium-v2, walker2d-medium-replay-v2, walker2d-medium-expert-v2
     hopper-medium-v2, hopper-medium-replay-v2, hopper-medium-expert-v2
     halfcheetah-medium-v2, halfcheetah-medium-replay-v2, halfcheetah-medium-expert-v2
 
-Observation format (from RLinf):
-    states: [B, state_dim] - MuJoCo proprioception
+Observation: [B, state_dim] flat state vector
+Action: [B, action_dim] continuous control
 
-Action format: [B, action_dim] - continuous control
+Dependencies:
+    pip install d4rl gymnasium[mujoco]
 """
 
 from __future__ import annotations
@@ -36,30 +36,21 @@ class D4RLTaskConfig:
     action_dim: int = 6
     state_dim: int = 17
     max_episode_steps: int = 1000
-
-    # RLinf-specific
     seed: int = 0
-    auto_reset: bool = True
-    use_subproc: bool = False
 
 
 class D4RLRRFEnv(RoboRenForceVecEnv):
     """D4RL environment implementing RoboRenForceVecEnv.
 
-    D4RL is state-only (no images), so we use the classic VecEnv interface
-    rather than EmbodiedEnv. This is appropriate for offline RL algorithms
-    like IQL, CQL, TD3+BC.
+    Directly uses upstream d4rl + gym packages (no RLinf dependency).
+    D4RL is state-only, appropriate for offline RL (IQL, CQL, TD3+BC).
 
     Usage:
-        cfg = {
-            "task_name": "walker2d-medium-v2",
-            "state_dim": 17,
-            "action_dim": 6,
-            "max_episode_steps": 1000,
-        }
+        cfg = {"task_name": "walker2d-medium-v2", "state_dim": 17, "action_dim": 6}
         env = D4RLRRFEnv(cfg, num_envs=1, device="cuda:0")
         obs, extras = env.reset()
         obs, rew, dones, extras = env.step(actions)
+        dataset = env.get_dataset()  # for offline RL
     """
 
     def __init__(self, cfg: dict, num_envs: int = 1, device: str = "cpu", **kwargs):
@@ -83,103 +74,95 @@ class D4RLRRFEnv(RoboRenForceVecEnv):
         self.privileged_obs_buf = None
         self.extras = {}
 
-        self._rlinf_env = None
-        self._init_rlinf_env(cfg, num_envs, kwargs)
+        self._envs = []
+        self._init_sim(cfg, num_envs)
 
-    def _init_rlinf_env(self, cfg: dict, num_envs: int, kwargs: dict):
-        """Construct the underlying RLinf D4RLEnv."""
+    def _init_sim(self, cfg: dict, num_envs: int):
+        """Create D4RL gym environments."""
         try:
-            from omegaconf import OmegaConf
-            from rlinf.envs.d4rl.d4rl_env import D4RLEnv
+            import gym
+            import d4rl  # noqa: F401  — registers d4rl envs
         except ImportError:
             raise ImportError(
-                "D4RL environment requires rlinf and d4rl:\n"
-                "  pip install rlinf\n"
+                "D4RL not found. Install it:\n"
                 "  pip install d4rl gymnasium[mujoco]"
             )
 
-        rlinf_cfg = OmegaConf.create({
-            "task_name": cfg["task_name"],
-            "seed": cfg.get("seed", 0),
-            "auto_reset": cfg.get("auto_reset", True),
-            "use_subproc": cfg.get("use_subproc", False),
-            "max_episode_steps": cfg.get("max_episode_steps", 1000),
-        })
+        task_name = cfg["task_name"]
+        for i in range(num_envs):
+            env = gym.make(task_name)
+            env.seed(cfg.get("seed", 0) + i)
+            self._envs.append(env)
 
-        seed_offset = kwargs.get("seed_offset", 0)
-        total_num_processes = kwargs.get("total_num_processes", 1)
-        worker_info = kwargs.get("worker_info", None)
+    def _obs_to_tensor(self, obs_list: list[np.ndarray]) -> torch.Tensor:
+        return torch.from_numpy(np.stack(obs_list)).float().to(self.device)
 
-        self._rlinf_env = D4RLEnv(
-            cfg=rlinf_cfg,
-            num_envs=num_envs,
-            seed_offset=seed_offset,
-            total_num_processes=total_num_processes,
-            worker_info=worker_info,
-        )
+    # ---- VecEnv interface ----
 
     def get_observations(self) -> tuple[torch.Tensor, dict]:
-        obs, infos = self._rlinf_env.reset()
-        states = obs.get("states", obs.get("state"))
-        if isinstance(states, np.ndarray):
-            states = torch.from_numpy(states).float()
-        self.obs_buf = states.to(self.device)
         return self.obs_buf, {"observations": {"policy": self.obs_buf}}
 
     def reset(self) -> tuple[torch.Tensor, dict]:
-        obs, infos = self._rlinf_env.reset()
-        states = obs.get("states", obs.get("state"))
-        if isinstance(states, np.ndarray):
-            states = torch.from_numpy(states).float()
-        self.obs_buf = states.to(self.device)
+        obs_list = [env.reset() for env in self._envs]
+        self.obs_buf = self._obs_to_tensor(obs_list)
         self.episode_length_buf.zero_()
-        self.extras = {"observations": {"policy": self.obs_buf}, "infos": infos}
+        self.extras = {"observations": {"policy": self.obs_buf}}
         return self.obs_buf, self.extras
 
     def step(self, actions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         actions_np = actions.detach().cpu().numpy()
-        obs, rewards, terminated, truncated, infos = self._rlinf_env.step(actions_np)
+        obs_list, rew_list, done_list, term_list, trunc_list = [], [], [], [], []
 
-        states = obs.get("states", obs.get("state"))
-        if isinstance(states, np.ndarray):
-            states = torch.from_numpy(states).float()
-        self.obs_buf = states.to(self.device)
+        for i, env in enumerate(self._envs):
+            result = env.step(actions_np[i])
+            if len(result) == 5:
+                obs, rew, terminated, truncated, info = result
+            else:
+                obs, rew, done, info = result
+                terminated = done and not info.get("TimeLimit.truncated", False)
+                truncated = info.get("TimeLimit.truncated", False)
 
-        if isinstance(rewards, np.ndarray):
-            rewards = torch.from_numpy(rewards).float()
-        self.rew_buf = rewards.to(self.device)
+            # Auto-reset
+            if terminated or truncated:
+                obs = env.reset()
 
-        if isinstance(terminated, np.ndarray):
-            terminated = torch.from_numpy(terminated)
-        if isinstance(truncated, np.ndarray):
-            truncated = torch.from_numpy(truncated)
-        dones = (terminated | truncated).long().to(self.device)
+            obs_list.append(obs)
+            rew_list.append(rew)
+            term_list.append(terminated)
+            trunc_list.append(truncated)
+
+        self.obs_buf = self._obs_to_tensor(obs_list)
+        self.rew_buf = torch.tensor(rew_list, dtype=torch.float32, device=self.device)
+        terminated_t = torch.tensor(term_list, dtype=torch.bool, device=self.device)
+        truncated_t = torch.tensor(trunc_list, dtype=torch.bool, device=self.device)
+        dones = (terminated_t | truncated_t).long()
         self.reset_buf = dones
 
         self.episode_length_buf += 1
+        # Reset counter for done envs
+        self.episode_length_buf[dones.bool()] = 0
+
         self.extras = {
             "observations": {"policy": self.obs_buf},
-            "termination": terminated.to(self.device),
-            "timeout": truncated.to(self.device),
-            "infos": infos,
+            "termination": terminated_t,
+            "timeout": truncated_t,
         }
         return self.obs_buf, self.rew_buf, dones, self.extras
 
-    def close(self):
-        if self._rlinf_env is not None and hasattr(self._rlinf_env, "close"):
-            self._rlinf_env.close()
-
     def get_dataset(self) -> dict:
         """Return the offline D4RL dataset for offline RL training."""
-        if hasattr(self._rlinf_env, "env") and hasattr(self._rlinf_env.env, "get_dataset"):
-            return self._rlinf_env.env.get_dataset()
-        try:
-            import d4rl
-            import gym
-            env = gym.make(self.cfg["task_name"])
-            return env.get_dataset()
-        except Exception:
-            raise RuntimeError(
-                f"Cannot load D4RL dataset for {self.cfg['task_name']}. "
-                "Ensure d4rl is installed."
-            )
+        if hasattr(self._envs[0], "get_dataset"):
+            return self._envs[0].get_dataset()
+        raise RuntimeError(f"Cannot load D4RL dataset for {self.cfg['task_name']}")
+
+    def get_normalized_score(self, returns: float) -> float:
+        """Return D4RL normalized score (0-100 scale)."""
+        if hasattr(self._envs[0], "get_normalized_score"):
+            return float(self._envs[0].get_normalized_score(returns)) * 100.0
+        return returns
+
+    def close(self):
+        for env in self._envs:
+            if hasattr(env, "close"):
+                env.close()
+        self._envs = []

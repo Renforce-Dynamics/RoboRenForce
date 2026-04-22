@@ -1,24 +1,27 @@
 """
 CALVIN Environment Wrapper for RoboRenForce
 
-Wraps RLinf's CalvinEnv behind the EmbodiedEnv interface.
+Directly wraps the CALVIN benchmark behind the EmbodiedEnv interface.
+No dependency on RLinf — uses upstream calvin_env package directly.
 
 CALVIN evaluates long-horizon manipulation via 5-subtask sequences.
-Each subtask is a natural language instruction that the agent must complete
-before moving to the next subtask.
+Each subtask is a natural language instruction.
 
 Task suites:
     - calvin_d:    scene D only
     - calvin_abc:  scenes A, B, C
     - calvin_abcd: all four scenes
 
-Observation format (from RLinf):
+Observation format:
     main_images:      [B, H, W, 3] - static camera RGB
     wrist_images:     [B, H, W, 3] - gripper camera RGB
     states:           [B, 7]       - 7-DOF joint positions
-    task_descriptions: list[str]   - current subtask language instruction
+    task_descriptions: list[str]   - current subtask instruction
 
-Action format: [B, 7] - 6D EEF pose + 1D gripper
+Action format: [B, 7] — 6D EEF pose + 1D gripper
+
+Dependencies:
+    Follow CALVIN setup: https://github.com/mees/calvin
 """
 
 from __future__ import annotations
@@ -26,9 +29,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 import torch
 
-from RoboRenForce.utils.env_wrapper.rlinf_bridge import RLinfBridgeEnv
+from RoboRenForce.prototype.embodied import EmbodiedEnv
 
 
 @dataclass
@@ -38,33 +42,24 @@ class CalvinTaskConfig:
     image_size: tuple[int, int] = (224, 224)
     action_dim: int = 7
     state_dim: int = 7
-    max_episode_steps: int = 360   # CALVIN uses 360 steps per subtask
+    max_episode_steps: int = 360
     has_wrist_camera: bool = True
     num_subtasks: int = 5
-
-    # RLinf-specific
     seed: int = 0
-    auto_reset: bool = True
-    use_rel_reward: bool = False
+    dataset_path: str = ""
     reward_coef: float = 1.0
 
-    # CALVIN data paths
-    dataset_path: str = ""
-    calvin_env_cfg: dict = field(default_factory=dict)
 
+class CalvinRRFEnv(EmbodiedEnv):
+    """CALVIN environment implementing EmbodiedEnv.
 
-class CalvinRRFEnv(RLinfBridgeEnv):
-    """CALVIN environment implementing EmbodiedEnv via RLinf bridge.
+    Directly uses upstream calvin_env package (no RLinf dependency).
 
     Usage:
         cfg = {
             "task_suite_name": "calvin_abcd",
-            "image_size": (224, 224),
-            "action_dim": 7,
-            "state_dim": 7,
-            "max_episode_steps": 360,
-            "has_wrist_camera": True,
             "dataset_path": "/path/to/calvin/dataset",
+            "max_episode_steps": 360,
         }
         env = CalvinRRFEnv(cfg, num_envs=4, device="cuda:0")
         obs, info = env.reset()
@@ -76,40 +71,139 @@ class CalvinRRFEnv(RLinfBridgeEnv):
         for k, v in defaults.__dict__.items():
             cfg.setdefault(k, v)
 
-        super().__init__(cfg, num_envs, device, **kwargs)
+        self.cfg = cfg
+        self.num_envs = num_envs
+        self.device = torch.device(device)
+        self.num_actions = cfg.get("action_dim", 7)
+        self.num_obs = cfg.get("state_dim", 7)
+        self.image_size = cfg.get("image_size", (224, 224))
+        self.state_dim = self.num_obs
         self.has_wrist_camera = True
-        self._init_rlinf_env(cfg, num_envs, kwargs)
+        self.max_episode_length = cfg.get("max_episode_steps", 360)
+        self.num_privileged_obs = 0
+        self._reward_coef = cfg.get("reward_coef", 1.0)
 
-    def _init_rlinf_env(self, cfg: dict, num_envs: int, kwargs: dict):
-        """Construct the underlying RLinf CalvinEnv."""
+        # Buffers
+        self.rew_buf = torch.zeros(num_envs, device=self.device)
+        self.reset_buf = torch.zeros(num_envs, dtype=torch.bool, device=self.device)
+        self.episode_length_buf = torch.zeros(num_envs, dtype=torch.long, device=self.device)
+        self.obs_buf = None
+        self.privileged_obs_buf = None
+        self.extras = {}
+
+        self._envs = []
+        self._task_descriptions = ["manipulation task"] * num_envs
+        self._init_sim(cfg)
+
+    def _init_sim(self, cfg: dict):
+        """Initialize CALVIN environments."""
         try:
-            from omegaconf import OmegaConf
-            from rlinf.envs.calvin.calvin_gym_env import CalvinEnv
+            import hydra
+            from calvin_env.envs.play_table_env import PlayTableSimEnv
         except ImportError:
             raise ImportError(
-                "CALVIN environment requires rlinf and calvin_env:\n"
-                "  pip install rlinf\n"
-                "  # Follow CALVIN setup: https://github.com/mees/calvin"
+                "CALVIN not found. Install it:\n"
+                "  git clone --recurse-submodules https://github.com/mees/calvin\n"
+                "  pip install -e calvin/calvin_env"
             )
 
-        rlinf_cfg = OmegaConf.create({
-            "task_suite_name": cfg["task_suite_name"],
-            "seed": cfg.get("seed", 0),
-            "auto_reset": cfg.get("auto_reset", True),
-            "use_rel_reward": cfg.get("use_rel_reward", False),
-            "reward_coef": cfg.get("reward_coef", 1.0),
-            "dataset_path": cfg.get("dataset_path", ""),
-            "calvin_env_cfg": cfg.get("calvin_env_cfg", {}),
-        })
+        dataset_path = cfg.get("dataset_path", "")
+        if not dataset_path:
+            raise ValueError(
+                "CALVIN requires dataset_path pointing to CALVIN dataset "
+                "(e.g., /data/calvin/task_D_D/)"
+            )
 
-        seed_offset = kwargs.get("seed_offset", 0)
-        total_num_processes = kwargs.get("total_num_processes", 1)
-        worker_info = kwargs.get("worker_info", None)
+        # Load CALVIN env config from dataset
+        import os
+        env_config_path = os.path.join(dataset_path, ".hydra", "config.yaml")
+        if os.path.exists(env_config_path):
+            with hydra.initialize_config_dir(config_dir=os.path.dirname(env_config_path)):
+                env_cfg = hydra.compose(config_name="config")
+        else:
+            raise FileNotFoundError(
+                f"CALVIN config not found at {env_config_path}. "
+                "Ensure dataset_path points to a valid CALVIN dataset directory."
+            )
 
-        self._rlinf_env = CalvinEnv(
-            cfg=rlinf_cfg,
-            num_envs=num_envs,
-            seed_offset=seed_offset,
-            total_num_processes=total_num_processes,
-            worker_info=worker_info,
-        )
+        for i in range(self.num_envs):
+            env = PlayTableSimEnv(**env_cfg.env)
+            self._envs.append(env)
+
+    def _extract_obs(self, raw_obs: dict) -> dict:
+        """Extract standard obs from single CALVIN env observation."""
+        return {
+            "main_image": raw_obs["rgb_obs"]["rgb_static"],
+            "wrist_image": raw_obs["rgb_obs"]["rgb_gripper"],
+            "state": raw_obs["robot_obs"][:7].astype(np.float32),
+        }
+
+    def _batch_obs(self, raw_obs_list: list[dict]) -> dict[str, Any]:
+        """Stack per-env observations into batched tensors."""
+        extracted = [self._extract_obs(o) for o in raw_obs_list]
+        result = {
+            "main_images": torch.from_numpy(
+                np.stack([e["main_image"] for e in extracted])
+            ).to(self.device),
+            "wrist_images": torch.from_numpy(
+                np.stack([e["wrist_image"] for e in extracted])
+            ).to(self.device),
+            "states": torch.from_numpy(
+                np.stack([e["state"] for e in extracted])
+            ).to(self.device),
+            "task_descriptions": list(self._task_descriptions),
+        }
+        return result
+
+    # ---- EmbodiedEnv interface ----
+
+    def get_observations(self) -> tuple[dict[str, Any], dict]:
+        raw_obs_list = [env.get_obs() for env in self._envs]
+        return self._batch_obs(raw_obs_list), self.extras
+
+    def reset(self) -> tuple[dict[str, Any], dict]:
+        raw_obs_list = []
+        for env in self._envs:
+            obs = env.reset()
+            raw_obs_list.append(obs)
+        obs = self._batch_obs(raw_obs_list)
+        self.episode_length_buf.zero_()
+        self.reset_buf.zero_()
+        self.extras = {}
+        return obs, self.extras
+
+    def step(self, actions: torch.Tensor) -> tuple[dict[str, Any], torch.Tensor, torch.Tensor, dict]:
+        actions_np = actions.detach().cpu().numpy()
+        raw_obs_list, rewards_list, terms_list = [], [], []
+
+        for i, env in enumerate(self._envs):
+            obs, reward, done, info = env.step(actions_np[i])
+            raw_obs_list.append(obs)
+            rewards_list.append(reward)
+            terms_list.append(done)
+
+        obs = self._batch_obs(raw_obs_list)
+        rewards = torch.tensor(rewards_list, dtype=torch.float32, device=self.device)
+        rewards = rewards * self._reward_coef
+        terminated = torch.tensor(terms_list, dtype=torch.bool, device=self.device)
+        self.episode_length_buf += 1
+        truncated = self.episode_length_buf >= self.max_episode_length
+        dones = terminated | truncated
+
+        # Auto-reset done envs
+        for i in range(self.num_envs):
+            if dones[i]:
+                reset_obs = self._envs[i].reset()
+                raw_obs_list[i] = reset_obs
+                self.episode_length_buf[i] = 0
+
+        self.rew_buf = rewards
+        self.reset_buf = dones
+        self.extras = {"termination": terminated, "timeout": truncated}
+        return obs, rewards, dones, self.extras
+
+    def close(self):
+        for env in self._envs:
+            if hasattr(env, "close"):
+                env.close()
+        self._envs = []

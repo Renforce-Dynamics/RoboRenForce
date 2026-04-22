@@ -11,7 +11,7 @@ from RoboRenForce import configclass
 from RoboRenForce.utils.logging import timeit
 from RoboRenForce.prototype.classic import RoboRenForceVecEnv
 from RoboRenForce.algorithms.on_policy.ppo import PPO, PPOCfg
-from RoboRenForce.runners.nn_model.nn_model_runner import (
+from RoboRenForce.runners.nn_model_based.nn_model_based_runner import (
     NNModelBasedRunner,
     NNModelBasedRunnerCfg,
 )

@@ -2,7 +2,7 @@
 """
 VLA Training on Benchmarks — LIBERO, ManiSkill, CALVIN, D4RL
 
-Unified training script for all RLinf-bridged benchmark environments.
+Unified training script for benchmark environments (LIBERO, ManiSkill, CALVIN, D4RL).
 Supports VLA pretraining (offline) and RL fine-tuning (online).
 
 Usage:

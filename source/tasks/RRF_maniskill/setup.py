@@ -11,7 +11,6 @@ setup(
     ],
     extras_require={
         "sim": [
-            "rlinf",
             "mani_skill",
         ],
     },

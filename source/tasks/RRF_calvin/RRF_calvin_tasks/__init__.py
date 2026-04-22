@@ -8,6 +8,6 @@ Scenes: A, B, C, D
 Task suites: calvin_d, calvin_abc, calvin_abcd
 
 Provides:
-- EmbodiedEnv wrapper via RLinf's CalvinEnv
+- EmbodiedEnv wrapper (directly uses upstream calvin_env package)
 - Gymnasium-registered tasks for VLA training
 """
