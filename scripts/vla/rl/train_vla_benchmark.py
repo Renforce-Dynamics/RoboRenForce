@@ -302,28 +302,30 @@ def run_eval_loop(env, policy, args):
 
 
 def run_rl_loop(env, policy, args):
-    """Simple RL training loop with GRPO/PPO."""
+    """Simple RL training loop with GRPO."""
     from RoboRenForce.algorithms.vla_training.grpo import GRPOAlgorithmCfg
     from RoboRenForce.runners.vla.rl.vla_grpo_runner import VLAGRPORunner, VLAGRPORunnerCfg
-    from RoboRenForce.utils.configclass import configclass
 
     device = torch.device(args.device)
     policy = policy.to(device)
 
     runner_cfg = VLAGRPORunnerCfg(
-        max_iterations=args.iterations,
-        num_steps_per_env=args.rollout_steps,
+        grpo_cfg=GRPOAlgorithmCfg(
+            learning_rate=args.lr,
+            update_epochs=args.update_epochs,
+        ),
         save_interval=args.save_interval,
         log_interval=args.log_interval,
-        experiment_name=f"{args.benchmark}_{args.task_suite or args.task_name}",
-        algorithm_cfg=GRPOAlgorithmCfg(
-            learning_rate=args.lr,
-            num_update_epochs=args.update_epochs,
-        ),
     )
 
-    runner = VLAGRPORunner(env, policy, runner_cfg, log_dir=args.log_dir, device=device)
-    runner.learn()
+    runner = VLAGRPORunner(
+        cfg=runner_cfg,
+        env=env,
+        policy=policy,
+        device=args.device,
+        log_dir=args.log_dir,
+    )
+    runner.learn(num_iterations=args.iterations)
 
 
 def main():
