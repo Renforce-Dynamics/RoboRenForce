@@ -225,7 +225,7 @@ See [docs/models.md](docs/models.md) for full details.
 | **LIBERO** | [`RRF_libero`](source/tasks/RRF_libero/) | Franka — 10/90/130 manipulation tasks | VLA Pretrain/RL | [`train_vla_benchmark.py`](scripts/vla/rl/train_vla_benchmark.py) |
 | **ManiSkill** | [`RRF_maniskill`](source/tasks/RRF_maniskill/) | Franka — GPU-accelerated manipulation | VLA Pretrain/RL | [`train_vla_benchmark.py`](scripts/vla/rl/train_vla_benchmark.py) |
 | **CALVIN** | [`RRF_calvin`](source/tasks/RRF_calvin/) | Franka — 5-subtask long-horizon eval | VLA Pretrain/RL | [`train_vla_benchmark.py`](scripts/vla/rl/train_vla_benchmark.py) |
-| **D4RL** | [`RRF_d4rl`](source/tasks/RRF_d4rl/) | Walker2d, Hopper, HalfCheetah | Offline RL | [`train_vla_benchmark.py`](scripts/vla/rl/train_vla_benchmark.py) |
+| **D4RL** | [`RRF_d4rl`](source/tasks/RRF_d4rl/) | Walker2d, Hopper, HalfCheetah | Offline RL | [`train_gym.py`](scripts/renforce/train_gym.py) |
 | **Humanoid Psi0** | [`RRF_humanoid_psi0`](source/tasks/RRF_humanoid_psi0/) | G1 Dex3 — 14 offline tasks | Offline | Offline runner |
 | **Gymnasium** | Built-in | Classic control, MuJoCo | RL Baseline | [`train_gym.py`](scripts/renforce/train_gym.py) |
 
@@ -449,7 +449,7 @@ See [docs/BENCHMARK_PLAN.md](docs/BENCHMARK_PLAN.md) for the full experiment mat
 | [`train_ddp.py`](scripts/vla/pretrain/train_ddp.py) | VLA pretraining (multi-GPU) | Use with `torchrun` |
 | [`train_sft.py`](scripts/vla/post_train/train_sft.py) | VLA supervised fine-tuning | |
 | [`train_robotwin_grpo.py`](scripts/vla/rl/train_robotwin_grpo.py) | VLA RL (GRPO/PPO) on RoboTwin | `--algo grpo/ppo` |
-| [`train_vla_benchmark.py`](scripts/vla/rl/train_vla_benchmark.py) | VLA on LIBERO/ManiSkill/CALVIN/D4RL | `--benchmark libero` |
+| [`train_vla_benchmark.py`](scripts/vla/rl/train_vla_benchmark.py) | VLA on LIBERO/ManiSkill/CALVIN | `--benchmark libero` |
 
 ---
 
