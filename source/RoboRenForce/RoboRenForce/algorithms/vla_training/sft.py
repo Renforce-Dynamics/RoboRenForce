@@ -103,9 +103,11 @@ class SFTAlgorithm(ModuleBase):
         if target_actions.dim() == 2:
             target_actions = target_actions.unsqueeze(1)  # [B, 1, action_dim]
 
-        # Forward through policy
+        # Forward through policy (handle DDP wrapper)
+        raw = policy.module if hasattr(policy, "module") else policy
+        fwd_type = ForwardType.SFT if hasattr(raw, "sft_forward") else ForwardType.PRETRAIN
         result = policy.forward(
-            ForwardType.SFT if hasattr(policy, "sft_forward") else ForwardType.PRETRAIN,
+            fwd_type,
             obs=obs,
             target_actions=target_actions,
         )
@@ -161,10 +163,13 @@ class SFTAlgorithm(ModuleBase):
         optimizer.zero_grad()
         total_loss.backward()
         if self.cfg.max_grad_norm > 0:
-            torch.nn.utils.clip_grad_norm_(
-                list(policy.trainable_parameters()),
-                self.cfg.max_grad_norm,
-            )
+            # Handle DDP-wrapped policies
+            raw = policy.module if hasattr(policy, "module") else policy
+            if hasattr(raw, "trainable_parameters"):
+                params = list(raw.trainable_parameters())
+            else:
+                params = [p for p in policy.parameters() if p.requires_grad]
+            torch.nn.utils.clip_grad_norm_(params, self.cfg.max_grad_norm)
         optimizer.step()
         self._step += 1
 
