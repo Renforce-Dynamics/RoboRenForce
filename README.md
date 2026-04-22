@@ -407,14 +407,28 @@ torchrun --nproc_per_node=2 scripts/vla/post_train/train_sft_ddp.py \
 
 See [docs/BENCHMARK_PLAN.md](docs/BENCHMARK_PLAN.md) for the full experiment matrix.
 
+### VLA Pretraining
+
+| Experiment | VLM | Head | GPUs | Train Loss | Val Loss | Throughput | Notes |
+|------------|-----|------|------|-----------|----------|------------|-------|
+| MLP Baseline | MockVLM | Regression | 1 × H100 | 0.1705 | 0.3899 | 3.34 batch/s | Sanity-check run |
+| Qwen2-VL DDP | Qwen2-VL-2B | Regression | 3 × H100 | 0.0323 → 0.0228 | 0.0228 | ~67 samples/s | 4 epochs, AMP enabled |
+
+### Locomotion (MJLab)
+
+| Task | Algorithm | Envs | Reward (start → end) | Steps/s | Hardware | Iters |
+|------|-----------|------|----------------------|---------|----------|-------|
+| Go1 Flat | PPO (GAE) | 256 | −5.77 → −0.31 | 1,100 | 1 × H100 | 20 |
+
+### Algorithm Verification
+
 | Paradigm | Algorithm | Status |
 |----------|-----------|--------|
-| Pretrain (SL) | VLAPretrainAlgorithm | Verified (single + 8-GPU DDP) |
-| Pretrain (DDP) | VLAPretrainAlgorithm | Verified (8-GPU) |
-| SFT | SFTAlgorithm (KL reg.) | Verified (single + 2-GPU DDP) |
-| GRPO | GRPOAlgorithm | Verified |
-| PPO (GAE) | PPOAlgorithm | Verified |
-| Locomotion PPO | PPO (MJLab Go1) | Verified (H100, 1100 steps/s) |
+| Pretrain (SL) | VLAPretrainAlgorithm | ✅ Verified (single + 3-GPU DDP) |
+| SFT | SFTAlgorithm (KL reg.) | ✅ Verified (single + 2-GPU DDP) |
+| GRPO | GRPOAlgorithm | ✅ Verified |
+| PPO (GAE) | PPOAlgorithm | ✅ Verified |
+| Locomotion PPO | PPO (MJLab Go1) | ✅ Verified (H100, 1100 steps/s) |
 
 ---
 

@@ -55,8 +55,22 @@ pyrightconfig.json
 .docs/*
 .references/*
 
+# Model weights and artifacts
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# Environment and secrets
+.env
+.env.*
+
+# Claude Code config (local dev tooling)
+CLAUDE.md
+.claude/
+
 # Temporary files
-# TODO*
 *.tmp
 *.bak
 *~

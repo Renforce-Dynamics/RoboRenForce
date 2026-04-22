@@ -347,7 +347,8 @@ def main():
     parser.add_argument("--psi0", action="store_true", help="Use mock VLM + real Psi0 data")
     parser.add_argument("--mock", action="store_true", help="Use mock VLM + mock data")
     parser.add_argument("--data_root", type=str,
-                        default="/vepfs/users/zza/hvla/data/psi-data-shared/unitree_dex3_converted/G1_Dex3_PickApple")
+                        default="data/example_dataset",
+                        help="Path to LeRobot-format dataset directory")
     parser.add_argument("--model_name", type=str, default="Qwen/Qwen2-VL-2B-Instruct")
     parser.add_argument("--head", type=str, default="regression", choices=["regression", "diffusion"])
     parser.add_argument("--action_dim", type=int, default=36)
