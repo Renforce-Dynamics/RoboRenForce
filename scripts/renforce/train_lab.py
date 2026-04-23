@@ -39,7 +39,7 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
 import RRF_isaaclab_tasks.isaaclab
-# import RRF_isaaclab_tasks.dynamics
+import RRF_isaaclab_tasks.dynamics
 import RRF_isaaclab_tasks.terrain
 
 from RoboRenForce.runners import BaseRunner
