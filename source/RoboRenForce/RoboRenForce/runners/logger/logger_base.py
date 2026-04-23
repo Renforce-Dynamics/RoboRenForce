@@ -2,7 +2,7 @@ import torch
 import statistics
 from RoboRenForce import configclass
 from torch.utils.tensorboard import SummaryWriter as TensorboardSummaryWriter
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Dict, Literal, Optional
 from RoboRenForce.utils.template.module_base import ModuleBaseCfg
 
 if TYPE_CHECKING:
@@ -10,7 +10,20 @@ if TYPE_CHECKING:
 
 
 class LoggerBase:
+    """Base logger with generic infrastructure.
+
+    Provides:
+    - Writer backend init (TensorBoard / Neptune / Wandb)
+    - Scalar logging via writer
+    - Model checkpoint saving
+    - Dict-based metric formatting
+
+    The ``log()`` method is RL-specific (expects runner with env, rewbuffer, etc.).
+    For supervised/fine-tuning tasks, use ``SupervisedLogger`` instead.
+    """
+
     cfg: "LoggerBaseCfg"
+
     def __init__(self, cfg, log_dir):
         self.cfg = cfg
         self.log_dir = log_dir
@@ -18,12 +31,14 @@ class LoggerBase:
         self.tot_timesteps = 0
         self.tot_time = 0
 
-    # --------------------------------------------------------------------- #
-    # initialization
-    # --------------------------------------------------------------------- #
+    # ===================================================================== #
+    # Generic infrastructure (used by ALL logger variants)
+    # ===================================================================== #
+
     def init_logger(self):
+        """Initialize the writer backend (TensorBoard / Neptune / Wandb)."""
         if self.log_dir is not None and self.writer is None:
-            print(f"Logging at {self.log_dir}")
+            print(f"[Logger] Logging at {self.log_dir}")
             self.logger_type = self.cfg.logger.lower()
 
             if self.logger_type == "neptune":
@@ -31,14 +46,16 @@ class LoggerBase:
                 self.writer = NeptuneSummaryWriter(
                     log_dir=self.log_dir, flush_secs=10, cfg=self.cfg
                 )
-                self.writer.log_config(self.env.cfg, self.cfg, self.alg_cfg, self.policy_cfg)
+                if hasattr(self, 'env'):
+                    self.writer.log_config(self.env.cfg, self.cfg, self.alg_cfg, self.policy_cfg)
 
             elif self.logger_type == "wandb":
                 from .utils.wandb_utils import WandbSummaryWriter
                 self.writer = WandbSummaryWriter(
                     log_dir=self.log_dir, flush_secs=10, cfg=self.cfg
                 )
-                self.writer.log_config(self.env.cfg, self.cfg, self.alg_cfg, self.policy_cfg)
+                if hasattr(self, 'env'):
+                    self.writer.log_config(self.env.cfg, self.cfg, self.alg_cfg, self.policy_cfg)
 
             elif self.logger_type == "tensorboard":
                 self.writer = TensorboardSummaryWriter(
@@ -48,11 +65,32 @@ class LoggerBase:
                 raise AssertionError("logger type not found")
 
     def save_model(self, saved_dict, path, iter):
+        """Save a checkpoint dict to disk (and optionally to cloud backend)."""
         torch.save(saved_dict, path)
         if self.logger_type in ["neptune", "wandb"]:
             self.writer.save_model(path, iter)
 
+    def log_scalar(self, tag: str, value: float, step: int):
+        """Log a single scalar to the writer backend."""
+        if self.writer is not None:
+            self.writer.add_scalar(tag, value, step)
+
+    def log_scalars(self, tag: str, metrics: Dict[str, float], step: int):
+        """Log a dict of scalars under a shared tag prefix."""
+        if self.writer is None:
+            return
+        for key, value in metrics.items():
+            if isinstance(value, (int, float)):
+                self.writer.add_scalar(f"{tag}/{key}", value, step)
+            elif isinstance(value, torch.Tensor) and value.numel() > 0:
+                self.writer.add_scalar(f"{tag}/{key}", value.mean().item(), step)
+
+    def log_info(self, msg: str):
+        """Log an informational message to console."""
+        print(f"[Info]  {msg}")
+
     def log_dict_infos(self, tab, it, tag, pad, writer):
+        """Format a dict of metrics as a padded string and log scalars."""
         ret_string = ""
         for key, value in tab.items():
             if isinstance(value, (int, float)):
@@ -66,9 +104,11 @@ class LoggerBase:
             )
             ret_string += f"{f'{tag}/':>{self.cfg.tag_pad}}{f'{key}:':>{pad-self.cfg.tag_pad}} " + f"{value:.4f}\n"
         return ret_string
-    # --------------------------------------------------------------------- #
-    # public API
-    # --------------------------------------------------------------------- #
+
+    # ===================================================================== #
+    # RL-specific logging (for OnPolicyRunner / OffPolicyRunner etc.)
+    # ===================================================================== #
+
     def log(
         self,
         runner: "OnPolicyRunner",
@@ -77,6 +117,11 @@ class LoggerBase:
         pad: int = None,
         ep_string: str = ""
     ):
+        """Log training metrics for RL runners.
+
+        Expects ``locs`` to contain: it, tot_iter, collection_time,
+        learn_time, alg_update_infos, sample_infos, ep_infos, etc.
+        """
         width   = self.cfg.width if width is None else width
         pad     = self.cfg.pad if pad is None else pad
         # update global counters
@@ -85,20 +130,20 @@ class LoggerBase:
         log_string = ""
         log_string += self._log_header_string(locs, width)
         log_string += ep_string
-        
+
         _string = self._log_episode_infos(runner, locs, pad)
-        if self.cfg.is_log_ep_info : log_string += _string 
+        if self.cfg.is_log_ep_info : log_string += _string
         _string = self._log_alg_update_infos(runner, locs, pad)
-        if self.cfg.is_log_update  : log_string += _string 
-        _string = self._log_sample_infos(runner, locs, pad)  
-        if self.cfg.is_log_sample  : log_string += _string 
-          
+        if self.cfg.is_log_update  : log_string += _string
+        _string = self._log_sample_infos(runner, locs, pad)
+        if self.cfg.is_log_sample  : log_string += _string
+
         log_string += self._log_statistics_string(runner, locs, pad)
         log_string += self._log_footer_string(runner, locs, pad, width)
         print(log_string)
 
     # --------------------------------------------------------------------- #
-    # internal helpers
+    # RL internal helpers
     # --------------------------------------------------------------------- #
     def _update_time_counters(self, runner, locs):
         steps = runner.cfg.num_steps_per_env * runner.env.num_envs
@@ -106,7 +151,6 @@ class LoggerBase:
         self.tot_timesteps += steps
         self.tot_time += iteration_time
 
-    # --------------------------- string ----------------------------------- #
     def _log_header_string(self, locs, width):
         title = f" Learning iteration {locs['it']}/{locs['tot_iter']} "
         return (
@@ -191,16 +235,16 @@ class LoggerBase:
 @configclass
 class LoggerBaseCfg(ModuleBaseCfg):
     class_type: type[LoggerBase] = LoggerBase
-    
+
     width           : int = 100
     pad             : int = 50
     tag_pad : int = 20
-    
+
     logger          : Literal["tensorboard", "neptune", "wandb"] = "tensorboard"
 
     is_log_ep_info  : bool = False
     is_log_update   : bool = True
     is_log_sample   : bool = True
 
-    neptune_project : str = "RoboRenForce" # """The neptune project name. Default is "RoboRenForce"."""
-    wandb_project   : str = "RoboRenForce" # """The wandb project name. Default is "RoboRenForce"."""
+    neptune_project : str = "RoboRenForce"
+    wandb_project   : str = "RoboRenForce"

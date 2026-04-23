@@ -48,9 +48,9 @@ class NNModelBasedRunner(BaseRunner):
         
         if "obs_norm_state_dict" in loaded_dict:
             self.obs_normalizer.load_state_dict(loaded_dict["obs_norm_state_dict"])
-            print("[INFO]: Observation normalization parameters loaded successfully.")
+            self.logger.log_info("Observation normalization parameters loaded.")
         else:
-            print("[WARNING]: Normalization parameters not found in checkpoint!")
+            self.logger.log_info("WARNING: Normalization parameters not found in checkpoint!")
 
         if load_optimizer:
             self.alg.optimizer.load_state_dict(loaded_dict["optimizer_state_dict"])
