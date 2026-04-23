@@ -11,7 +11,8 @@ Checkpoint loading:
 
 from __future__ import annotations
 
-from dataclasses import field, MISSING
+import math
+from dataclasses import MISSING
 from typing import Dict, Optional
 
 import torch
@@ -44,7 +45,7 @@ class SinusoidalPositionalEncoding(nn.Module):
         B, T = timesteps.shape
         half_dim = self.embedding_dim // 2
         exponent = -torch.arange(half_dim, dtype=torch.float, device=timesteps.device) * (
-            torch.log(torch.tensor(10000.0)) / half_dim
+            math.log(10000.0) / half_dim
         )
         freqs = timesteps.unsqueeze(-1) * exponent.exp()
         return torch.cat([torch.sin(freqs), torch.cos(freqs)], dim=-1)
@@ -265,7 +266,9 @@ class FlowMatchingActionDiT(NNModelBase):
         noisy_trajectory = (1 - t) * actions + t * noise
         velocity = noise - actions
 
-        t_discretized = (t[:, 0, 0] * self.cfg.num_timestep_buckets).long()
+        t_discretized = (t[:, 0, 0] * self.cfg.num_timestep_buckets).long().clamp(
+            0, self.cfg.num_timestep_buckets - 1
+        )
         action_features = self.action_encoder(noisy_trajectory, t_discretized)
 
         state_features = (
@@ -334,16 +337,21 @@ class FlowMatchingActionDiT(NNModelBase):
             else None
         )
 
+        # Pre-compute position embeddings (constant across denoising steps)
+        pos_embs = None
+        if cfg.add_pos_embed:
+            pos_ids = torch.arange(cfg.action_horizon, dtype=torch.long, device=device)
+            pos_embs = self.position_embedding(pos_ids).unsqueeze(0)
+
         for t in range(num_steps):
             t_cont = 1.0 - t / float(num_steps)
-            t_disc = int(t_cont * cfg.num_timestep_buckets)
+            t_disc = min(int(t_cont * cfg.num_timestep_buckets), cfg.num_timestep_buckets - 1)
             timesteps_tensor = torch.full((B,), t_disc, device=device)
 
             action_features = self.action_encoder(actions, timesteps_tensor)
 
-            if cfg.add_pos_embed:
-                pos_ids = torch.arange(action_features.shape[1], dtype=torch.long, device=device)
-                action_features = action_features + self.position_embedding(pos_ids).unsqueeze(0)
+            if pos_embs is not None:
+                action_features = action_features + pos_embs
 
             sa_embs = (
                 torch.cat((state_features, action_features), dim=1)
