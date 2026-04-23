@@ -17,7 +17,7 @@ from isaaclab.utils import configclass
 from RoboRenForce.runners import OnPolicyRunnerCfg, OffPolicyRunnerCfg, LoggerBaseCfg
 from RoboRenForce.components.normalizer import NormalizerEmpiricalCfg, NormalizerBaseCfg
 from RoboRenForce.components.actor_critic_pack import ActorCriticPackCfg
-from RoboRenForce.buffer import PipeBufferTransitionCfg, replay_bundle, DirectTransitionBuffer, DirectTransitionBufferCfg
+from RoboRenForce.buffer import replay_bundle, DirectTransitionBufferCfg
 from RoboRenForce.components.actor import SACActorCfg, StateIndStdActorCfg
 from RoboRenForce.components.critic import MultiQNetworkCfg, VNetworkCfg, GaussianQNetworkCfg
 from RoboRenForce.algorithms.off_policy.sac import SACCfg

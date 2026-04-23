@@ -212,4 +212,4 @@ class OffPolicyRunnerCfg(BaseRunnerCfg):
     
     logger_cfg: LoggerBaseCfg = LoggerBaseCfg()
         
-    replay_cfg: replay_bundle.ReplayBundle = replay_bundle.ReplayPipelineBundle()
+    replay_cfg: replay_bundle.ReplayBundle = replay_bundle.ReplayBundle()

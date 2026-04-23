@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-import torch
-from RoboRenForce import configclass
-from typing import Generator, Dict, Tuple, Union
-from RoboRenForce.buffer import PipeBufferTransition
-
 import copy
 import torch
 import torch.nn as nn
@@ -21,12 +16,6 @@ from RoboRenForce.components.actor import SACActor
 from RoboRenForce.components.critic import GaussianQNetwork
 from RoboRenForce.networks.optimizer import GroupedOptimizerCfg, GroupedOptimizer
 from RoboRenForce.algorithms.algorithm_base import AlgorithmBase, AlgorithmBaseCfg
-
-# -----------------------------------------------------
-# Flatten (T-1, B) -> (N,)
-# -----------------------------------------------------
-def flatten(x):
-    return x.reshape(-1, *x.shape[2:])
 
 class DSACT(AlgorithmBase):
     """
@@ -131,36 +120,41 @@ class DSACT(AlgorithmBase):
             tp.data.mul_(1.0 - tau)
             tp.data.add_(tau * p.data)
 
-    def update(self, generator: Generator[Union[PipeBufferTransition.TransitionData, dict], None, None]):
+    def update(self, generator: Generator[Dict[str, torch.Tensor], None, None]):
         self.ptr_update = 0
-        critic_losses, avg_q1_mean_s, avg_q2_mean_s, avg_q1_std_s, avg_q2_std_s, actor_losses, alpha_losses, alphas, entropies = [], [], [], [], [], [], [], [], []
-        for minib in generator:
-            if isinstance(minib, dict):
-                critic_loss, avg_q1_mean, avg_q2_mean, avg_q1_std, avg_q2_std, min_q1_std, min_q2_std, actor_loss, alpha_loss, alpha, entropy = self.compute_gradient(**minib)
-                self.update_trans()
-            else:
-                raise NotImplementedError("DSAC get bad replay buffer.")
-            critic_losses.append(critic_loss)
-            avg_q1_mean_s.append(avg_q1_mean)
-            avg_q2_mean_s.append(avg_q2_mean)
-            avg_q1_std_s.append(avg_q1_std)
-            avg_q2_std_s.append(avg_q2_std)
-            if actor_loss is not None: actor_losses.append(actor_loss)
-            if alpha_loss is not None: alpha_losses.append(alpha_loss)
-            alphas.append(alpha)
-            if entropy is not None: entropies.append(entropy)
-        self.ptr_update += 1
+        stats = {k: [] for k in [
+            "critic_loss", "q1_mean", "q2_mean", "q1_std", "q2_std",
+            "actor_loss", "alpha_loss", "alpha", "entropy",
+        ]}
+        for batch in generator:
+            critic_loss, q1_mean, q2_mean, q1_std, q2_std, _, _, actor_loss, alpha_loss, alpha, entropy = \
+                self.compute_gradient(**batch)
+            self._apply_gradients()
+            stats["critic_loss"].append(critic_loss)
+            stats["q1_mean"].append(q1_mean)
+            stats["q2_mean"].append(q2_mean)
+            stats["q1_std"].append(q1_std)
+            stats["q2_std"].append(q2_std)
+            if actor_loss is not None: stats["actor_loss"].append(actor_loss)
+            if alpha_loss is not None: stats["alpha_loss"].append(alpha_loss)
+            stats["alpha"].append(alpha)
+            if entropy is not None: stats["entropy"].append(entropy)
+            self.ptr_update += 1
+
+        def _mean(lst):
+            return sum(lst) / len(lst) if lst else 0.0
+
         return {
-            "critic_loss": sum(critic_losses) / len(critic_losses),
-            "actor_loss": sum(actor_losses) / len(actor_losses) if actor_losses else 0.0,
-            "q1_mean": sum(avg_q1_mean_s) / len(avg_q1_mean_s),
-            "q2_mean": sum(avg_q2_mean_s) / len(avg_q2_mean_s),
-            "q1_std": sum(avg_q1_std_s) / len(avg_q1_std_s),
-            "q2_std": sum(avg_q2_std_s) / len(avg_q2_std_s),
-            "alpha_loss": sum(alpha_losses) / len(alpha_losses) if alpha_losses else 0.0,
-            "alpha": sum(alphas) / len(alphas),
-            "entropy": sum(entropies) / len(entropies) if entropies else 0.0,
-            "mini_batch_num": self.ptr_update
+            "critic_loss":   _mean(stats["critic_loss"]),
+            "actor_loss":    _mean(stats["actor_loss"]),
+            "q1_mean":       _mean(stats["q1_mean"]),
+            "q2_mean":       _mean(stats["q2_mean"]),
+            "q1_std":        _mean(stats["q1_std"]),
+            "q2_std":        _mean(stats["q2_std"]),
+            "alpha_loss":    _mean(stats["alpha_loss"]),
+            "alpha":         _mean(stats["alpha"]),
+            "entropy":       _mean(stats["entropy"]),
+            "mini_batch_num": self.ptr_update,
         }
 
     def compute_gradient(
@@ -209,7 +203,7 @@ class DSACT(AlgorithmBase):
 
         return critic_loss, avg_q1_mean, avg_q2_mean, avg_q1_std, avg_q2_std, min_q1_std, min_q2_std, actor_loss, alpha_loss, self._get_alpha(), entropy
     
-    def update_trans(self):
+    def _apply_gradients(self):
         self.critic1_optimizer.step()
         self.critic2_optimizer.step()
         

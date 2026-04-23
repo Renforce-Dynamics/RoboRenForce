@@ -1,6 +1,6 @@
 from RoboRenForce import configclass
 from RoboRenForce import runners, algorithms, components, networks
-from RoboRenForce.buffer import PipeBufferTransitionCfg, replay_bundle, DirectTransitionBuffer, DirectTransitionBufferCfg
+from RoboRenForce.buffer import replay_bundle, DirectTransitionBufferCfg
 import math
 
 @configclass

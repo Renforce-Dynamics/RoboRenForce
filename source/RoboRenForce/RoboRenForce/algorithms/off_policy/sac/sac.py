@@ -197,8 +197,8 @@ class SAC(AlgorithmBase):
             self.alpha_optimizer.step()
             self.alpha = self.log_alpha.exp()
 
-        entropy = float(-log_prob.mean())
-        return float(actor_loss), (0.0 if alpha_loss is None else float(alpha_loss)), entropy
+        entropy = -log_prob.mean().item()
+        return actor_loss.item(), (0.0 if alpha_loss is None else alpha_loss.item()), entropy
 
     @torch.no_grad()
     def _soft_update(self):
