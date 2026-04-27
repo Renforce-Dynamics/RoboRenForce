@@ -18,30 +18,49 @@ RoboRenForce is a unified framework that covers the full robotics RL pipeline: c
 ## Architecture
 
 ```
-┌─────────────────────────── RoboRenForce ───────────────────────────┐
-│                                                                     │
-│  System 2 (VLM Backbone)     System 1 (Action Expert)     System 0 │
-│  ┌───────────────────┐       ┌──────────────────┐       ┌────────┐ │
-│  │ Qwen2-VL / Qwen3  │──────▶│ Regression Head  │──────▶│ Loco   │ │
-│  │ OpenPI / GR00T    │       │ Diffusion Head   │       │ Policy │ │
-│  │ (frozen / LoRA)   │       │ Flow-Match Head  │       │ (Psi0) │ │
-│  └───────────────────┘       └──────────────────┘       └────────┘ │
-│           ▲                          ▲                       ▲      │
-│     observations               configclass               env API   │
-│           │                          │                       │      │
-│  ┌────────┴──────────────────────────┴───────────────────────┴────┐ │
-│  │              Environment Wrapper Chain                         │ │
-│  │  Isaac Lab ─┐                                                 │ │
-│  │  MJLab     ─┤─▶ VecEnv ─▶ DynamicEnv ─▶ GroupVecWrapper     │ │
-│  │  RoboTwin  ─┤                                                 │ │
-│  │  Gymnasium ─┘                                                 │ │
-│  └───────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────── RoboRenForce ────────────────────────────────┐
+│                                                                              │
+│   System 2 (VLM Backbone)            System 1 (Action Expert / Psi0)         │
+│   ┌──────────────────────┐           ┌──────────────────────────────┐        │
+│   │ Qwen2-VL / Qwen3-VL  │──feats──▶ │ Psi0 — Regression /          │        │
+│   │ OpenPI / GR00T       │           │  Diffusion / Flow-Match head │        │
+│   │ (frozen / LoRA)      │           │ chunked high-level actions   │        │
+│   └──────────────────────┘           └──────────────────────────────┘        │
+│              ▲                                       │                       │
+│       obs (image+lang)                  high-level target / EE pose          │
+│              │                                       ▼                       │
+│              │                       System 0 (Whole-Body Loco Policy)       │
+│              │                       ┌──────────────────────────────┐        │
+│              │                       │ AMO · Sonic · custom RL/MPC  │        │
+│              │                       │  joint-level torques / dq    │        │
+│              │                       └──────────────────────────────┘        │
+│              │                                       │                       │
+│  ┌───────────┴───────────────────────────────────────┴─────────────────────┐ │
+│  │                    Environment Wrapper Chain                            │ │
+│  │  Isaac Lab ─┐                                                           │ │
+│  │  MJLab     ─┤─▶ VecEnv ─▶ DynamicEnv ─▶ GroupVecWrapper ─▶ MultiModal  │ │
+│  │  RoboTwin  ─┤                                                           │ │
+│  │  Gymnasium ─┘                                                           │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+System 2 reasons over vision + language and emits latent features.
+System 1 (Psi0) consumes those features and outputs chunked high-level actions
+(joint targets / EE poses) via a regression, diffusion, or flow-match head.
+System 0 is a low-level whole-body locomotion policy (AMO, Sonic, …) trained
+with PPO/SAC that tracks System 1's targets at simulator rate.
 ```
 
 ---
 
 ## Installation
+
+> **Planning a GR00T finetune?** Read **[docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md)** first
+> — it walks through the system packages (`python3.10-dev`, `ffmpeg`, `libaio-dev`, `git-lfs`),
+> downloading the gated `nvidia/GR00T-N1.7-3B` + `nvidia/Cosmos-Reason2-2B` weights, disk-space
+> planning, and a verified end-to-end finetune on the bundled SO101 demo. For training
+> data, see **[docs/DATA_DOWNLOAD.md](docs/DATA_DOWNLOAD.md)** (bundled demos, NVIDIA
+> GR00T-flavored datasets, and converting community LeRobot v3 datasets).
 
 ```bash
 git clone <repository-url>
