@@ -40,7 +40,7 @@ def _build_policy():
 class ManiSkillPickCubeGRPOCfg(VLAGRPORunnerCfg):
     grpo_cfg = GRPOAlgorithmCfg(
         group_size=8, clip_ratio_low=0.2, clip_ratio_high=0.28,
-        kl_beta=0.05, update_epochs=4, learning_rate=1e-4, reward_coef=1.0,
+        kl_beta=0.1, update_epochs=2, learning_rate=1e-5, reward_coef=1.0,
     )
     log_interval: int = 1
     save_interval: int = 50
