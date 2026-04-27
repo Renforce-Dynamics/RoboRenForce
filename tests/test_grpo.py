@@ -210,7 +210,7 @@ class MockEmbodiedEnv:
 
 
 class TestGRPORunnerE2E:
-    def test_runner_init(self):
+    def test_runner_init(self, tmp_path):
         from RoboRenForce.runners.vla.rl import VLAGRPORunner, VLAGRPORunnerCfg
         from RoboRenForce.algorithms.vla_training.grpo import GRPOAlgorithmCfg
         from RRF_models.mlp_baseline.mlp_policy import MLPBaselinePolicy
@@ -219,13 +219,13 @@ class TestGRPORunnerE2E:
         policy = MLPBaselinePolicy(state_dim=8, action_dim=4)
         cfg = VLAGRPORunnerCfg(
             grpo_cfg=GRPOAlgorithmCfg(group_size=2, update_epochs=1),
-            checkpoint_dir="/tmp/test_grpo_ckpt",
+            checkpoint_dir=str(tmp_path / "ckpt"),
         )
         runner = VLAGRPORunner(cfg, env, policy, device="cpu",
-                               log_dir="/tmp/test_grpo_logs")
+                               log_dir=str(tmp_path / "log"))
         assert runner.global_step == 0
 
-    def test_collect_rollouts(self):
+    def test_collect_rollouts(self, tmp_path):
         from RoboRenForce.runners.vla.rl import VLAGRPORunner, VLAGRPORunnerCfg
         from RoboRenForce.algorithms.vla_training.grpo import GRPOAlgorithmCfg
         from RRF_models.mlp_baseline.mlp_policy import MLPBaselinePolicy
@@ -234,10 +234,10 @@ class TestGRPORunnerE2E:
         policy = MLPBaselinePolicy(state_dim=8, action_dim=4)
         cfg = VLAGRPORunnerCfg(
             grpo_cfg=GRPOAlgorithmCfg(group_size=3, update_epochs=1),
-            checkpoint_dir="/tmp/test_grpo_ckpt",
+            checkpoint_dir=str(tmp_path / "ckpt"),
         )
         runner = VLAGRPORunner(cfg, env, policy, device="cpu",
-                               log_dir="/tmp/test_grpo_logs")
+                               log_dir=str(tmp_path / "log"))
 
         rollout = runner.collect_rollouts()
         total = env.num_envs * 3  # 4 envs × 3 group_size = 12
@@ -247,7 +247,7 @@ class TestGRPORunnerE2E:
         assert rollout.episode_returns.shape == (total,)
         assert len(rollout.obs) == total
 
-    def test_train_on_rollouts(self):
+    def test_train_on_rollouts(self, tmp_path):
         from RoboRenForce.runners.vla.rl import VLAGRPORunner, VLAGRPORunnerCfg
         from RoboRenForce.algorithms.vla_training.grpo import GRPOAlgorithmCfg
         from RRF_models.mlp_baseline.mlp_policy import MLPBaselinePolicy
@@ -259,10 +259,10 @@ class TestGRPORunnerE2E:
                 group_size=2, update_epochs=2, kl_beta=0, entropy_bonus=0,
                 learning_rate=1e-3,
             ),
-            checkpoint_dir="/tmp/test_grpo_ckpt",
+            checkpoint_dir=str(tmp_path / "ckpt"),
         )
         runner = VLAGRPORunner(cfg, env, policy, device="cpu",
-                               log_dir="/tmp/test_grpo_logs")
+                               log_dir=str(tmp_path / "log"))
 
         rollout = runner.collect_rollouts()
         metrics = runner.train_on_rollouts(rollout)
@@ -271,7 +271,7 @@ class TestGRPORunnerE2E:
         assert "policy_loss" in metrics
         assert isinstance(metrics["total_loss"], float)
 
-    def test_learn_loop(self):
+    def test_learn_loop(self, tmp_path):
         """Full training loop: 3 iterations, should not crash."""
         from RoboRenForce.runners.vla.rl import VLAGRPORunner, VLAGRPORunnerCfg
         from RoboRenForce.algorithms.vla_training.grpo import GRPOAlgorithmCfg
@@ -285,17 +285,17 @@ class TestGRPORunnerE2E:
                 learning_rate=1e-3,
             ),
             save_interval=0,  # disable checkpoint saving in test
-            checkpoint_dir="/tmp/test_grpo_ckpt",
+            checkpoint_dir=str(tmp_path / "ckpt"),
         )
         runner = VLAGRPORunner(cfg, env, policy, device="cpu",
-                               log_dir="/tmp/test_grpo_logs")
+                               log_dir=str(tmp_path / "log"))
 
         # Should complete without error
         runner.learn(num_iterations=3)
         assert runner.global_step == 3
         assert runner.total_episodes == 2 * 2 * 3  # 2 envs × 2 group × 3 iters = 12
 
-    def test_evaluate(self):
+    def test_evaluate(self, tmp_path):
         from RoboRenForce.runners.vla.rl import VLAGRPORunner, VLAGRPORunnerCfg
         from RoboRenForce.algorithms.vla_training.grpo import GRPOAlgorithmCfg
         from RRF_models.mlp_baseline.mlp_policy import MLPBaselinePolicy
@@ -304,10 +304,10 @@ class TestGRPORunnerE2E:
         policy = MLPBaselinePolicy(state_dim=8, action_dim=4)
         cfg = VLAGRPORunnerCfg(
             grpo_cfg=GRPOAlgorithmCfg(group_size=2),
-            checkpoint_dir="/tmp/test_grpo_ckpt",
+            checkpoint_dir=str(tmp_path / "ckpt"),
         )
         runner = VLAGRPORunner(cfg, env, policy, device="cpu",
-                               log_dir="/tmp/test_grpo_logs")
+                               log_dir=str(tmp_path / "log"))
 
         eval_metrics = runner.evaluate(num_episodes=8)
         assert "mean_return" in eval_metrics

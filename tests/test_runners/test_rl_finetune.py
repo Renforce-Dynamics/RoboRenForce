@@ -178,12 +178,12 @@ class TestMultimodalEnvWrapper:
 
 
 class TestGRPORunner:
-    def test_grpo_collect_rollouts(self):
+    def test_grpo_collect_rollouts(self, tmp_path):
         env = _MockEnv(num_envs=4)
         policy = _MockRLPolicy()
         cfg = VLAGRPORunnerCfg(
             grpo_cfg=GRPOAlgorithmCfg(group_size=2, update_epochs=1),
-            checkpoint_dir="/tmp/test_grpo_ckpt",
+            checkpoint_dir=str(tmp_path / "ckpt"),
         )
         runner = VLAGRPORunner(cfg, env=env, policy=policy, device="cpu")
 
@@ -244,12 +244,12 @@ class TestPPORunner:
         assert advantages.shape == (T, B)
         assert returns.shape == (T, B)
 
-    def test_ppo_collect_rollouts(self):
+    def test_ppo_collect_rollouts(self, tmp_path):
         env = _MockEnv(num_envs=4, max_episode_length=10)
         policy = _MockRLPolicy()
         cfg = VLAPPORunnerCfg(
             ppo_cfg=PPOAlgorithmCfg(update_epochs=1),
-            checkpoint_dir="/tmp/test_ppo_ckpt",
+            checkpoint_dir=str(tmp_path / "ckpt"),
         )
         runner = VLAPPORunner(cfg, env=env, policy=policy, device="cpu")
 

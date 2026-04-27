@@ -159,7 +159,7 @@ class MultimodalEnvWrapperCfg(ModuleBaseCfg):
     class_type: type[MultimodalEnvWrapper] = MultimodalEnvWrapper
 
     image_size: tuple = (224, 224)
-    image_mode: str = "dummy"           # "render" or "dummy"
+    image_mode: str = "render"          # "render" (default) or "dummy" (test fixtures only)
     has_wrist_camera: bool = False
     task_description: str = "complete the task"
     max_episode_length: int = 200
