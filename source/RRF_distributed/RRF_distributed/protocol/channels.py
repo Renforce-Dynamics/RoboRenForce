@@ -97,6 +97,12 @@ class Channel(Generic[M]):
     def close(self) -> None:
         self._q.close()
 
+    def __deepcopy__(self, memo):
+        # Channels are reference-shared on purpose: producer and consumer must
+        # see the same underlying queue. Deepcopy would also fail on the inner
+        # mp.Queue (which refuses to be pickled outside of process spawn).
+        return self
+
 
 def ObsChannel(maxsize: int = 0) -> Channel[ObsBatch]:
     return Channel(ObsBatch, maxsize=maxsize)
