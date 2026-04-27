@@ -148,12 +148,22 @@ class ManiSkillRRFEnv(EmbodiedEnv):
                 task_descriptions = [self.cfg["task_name"]] * self.num_envs
 
         elif isinstance(raw_obs, torch.Tensor):
-            # State-only mode
+            # State-only mode — clip/pad to configured state_dim so policy fusion
+            # layer can consume it without redefining input dimensions.
+            states = raw_obs.to(self.device, dtype=torch.float32)
+            if states.shape[-1] > self.state_dim:
+                states = states[..., : self.state_dim]
+            elif states.shape[-1] < self.state_dim:
+                pad = torch.zeros(
+                    *states.shape[:-1], self.state_dim - states.shape[-1],
+                    dtype=states.dtype, device=states.device,
+                )
+                states = torch.cat([states, pad], dim=-1)
             return {
                 "main_images": torch.zeros(
                     self.num_envs, *self.image_size, 3, dtype=torch.uint8, device=self.device
                 ),
-                "states": raw_obs.to(self.device, dtype=torch.float32),
+                "states": states,
                 "task_descriptions": [self.cfg["task_name"]] * self.num_envs,
             }
         else:
@@ -192,8 +202,12 @@ class ManiSkillRRFEnv(EmbodiedEnv):
 
         if not isinstance(terminated, torch.Tensor):
             terminated = torch.tensor(terminated, dtype=torch.bool, device=self.device)
+        else:
+            terminated = terminated.to(self.device, dtype=torch.bool)
         if not isinstance(truncated, torch.Tensor):
             truncated = torch.tensor(truncated, dtype=torch.bool, device=self.device)
+        else:
+            truncated = truncated.to(self.device, dtype=torch.bool)
 
         dones = terminated | truncated
         self.episode_length_buf += 1

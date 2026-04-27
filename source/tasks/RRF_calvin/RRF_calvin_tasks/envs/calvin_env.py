@@ -107,27 +107,46 @@ class CalvinRRFEnv(EmbodiedEnv):
                 "  pip install -e calvin/calvin_env"
             )
 
-        dataset_path = cfg.get("dataset_path", "")
-        if not dataset_path:
-            raise ValueError(
-                "CALVIN requires dataset_path pointing to CALVIN dataset "
-                "(e.g., /data/calvin/task_D_D/)"
-            )
-
-        # Load CALVIN env config from dataset
         import os
-        env_config_path = os.path.join(dataset_path, ".hydra", "config.yaml")
-        if os.path.exists(env_config_path):
-            with hydra.initialize_config_dir(config_dir=os.path.dirname(env_config_path)):
+        dataset_path = cfg.get("dataset_path", "")
+        env_config_path = os.path.join(dataset_path, ".hydra", "config.yaml") if dataset_path else ""
+
+        if dataset_path and os.path.exists(env_config_path):
+            with hydra.initialize_config_dir(config_dir=os.path.dirname(env_config_path), version_base=None):
                 env_cfg = hydra.compose(config_name="config")
         else:
-            raise FileNotFoundError(
-                f"CALVIN config not found at {env_config_path}. "
-                "Ensure dataset_path points to a valid CALVIN dataset directory."
+            # Fall back to upstream calvin_env data-collection config so the env
+            # is constructible without a recorded dataset (useful for smoke /
+            # CI). For real RL training, point dataset_path at a CALVIN release.
+            import calvin_env
+            calvin_conf_dir = os.path.join(
+                os.path.dirname(calvin_env.__file__), "..", "conf"
             )
+            calvin_conf_dir = os.path.abspath(calvin_conf_dir)
+            with hydra.initialize_config_dir(config_dir=calvin_conf_dir, version_base=None):
+                env_cfg = hydra.compose(
+                    config_name="config_data_collection",
+                    overrides=["cameras=static_and_gripper"],
+                )
+            env_cfg.env["use_egl"] = False
+            env_cfg.env["show_gui"] = False
+            env_cfg.env["use_vr"] = False
+            env_cfg.env["use_scene_info"] = True
 
+        # PlayTableSimEnv expects DictConfig nodes (attribute access like
+        # ``cameras[name].width``). Resolve interpolations against the full
+        # config tree first so that ``cameras: ${cameras}`` etc. become
+        # concrete sub-nodes; then pull env keys out as DictConfig.
+        from omegaconf import OmegaConf
+        OmegaConf.resolve(env_cfg)
+        env_node = env_cfg.env
+        OmegaConf.set_struct(env_node, False)
+        for marker in ("_target_", "_recursive_"):
+            if marker in env_node:
+                del env_node[marker]
+        env_kwargs = {k: env_node[k] for k in env_node}
         for i in range(self.num_envs):
-            env = PlayTableSimEnv(**env_cfg.env)
+            env = PlayTableSimEnv(**env_kwargs)
             self._envs.append(env)
 
     def _extract_obs(self, raw_obs: dict) -> dict:
@@ -177,7 +196,12 @@ class CalvinRRFEnv(EmbodiedEnv):
         raw_obs_list, rewards_list, terms_list = [], [], []
 
         for i, env in enumerate(self._envs):
-            obs, reward, done, info = env.step(actions_np[i])
+            # CALVIN expects gripper to be discrete (-1 close / 1 open). The
+            # policy outputs a continuous scalar — threshold at 0 to convert.
+            a = actions_np[i].copy()
+            if a.shape[-1] >= 7:
+                a[..., 6] = 1.0 if a[..., 6] >= 0 else -1.0
+            obs, reward, done, info = env.step(a)
             raw_obs_list.append(obs)
             rewards_list.append(reward)
             terms_list.append(done)

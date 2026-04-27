@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import math
 import multiprocessing as mp
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -138,7 +139,8 @@ class LiberoRRFEnv(EmbodiedEnv):
     def _init_sim(self, cfg: dict):
         """Initialize LIBERO environments via subprocess vector env."""
         try:
-            from libero.libero.benchmark import Benchmark
+            from libero.libero import get_libero_path
+            from libero.libero.benchmark import get_benchmark
             from libero.libero.envs import OffScreenRenderEnv
         except ImportError:
             raise ImportError(
@@ -148,8 +150,10 @@ class LiberoRRFEnv(EmbodiedEnv):
                 "  pip install robosuite"
             )
 
+        bddl_root = get_libero_path("bddl_files")
+
         suite_name = cfg["task_suite_name"]
-        benchmark = Benchmark(suite_name)()
+        benchmark = get_benchmark(suite_name)()
         num_tasks = benchmark.get_num_tasks()
         rng = np.random.default_rng(cfg.get("seed", 0))
 
@@ -168,7 +172,7 @@ class LiberoRRFEnv(EmbodiedEnv):
         for i in range(self.num_envs):
             task_id = i % num_tasks
             task = benchmark.get_task(task_id)
-            bddl_file = task.bddl_file
+            bddl_file = os.path.join(bddl_root, task.problem_folder, task.bddl_file)
             env = OffScreenRenderEnv(bddl_file_name=bddl_file, **env_args)
             env.seed(int(rng.integers(0, 2**31)))
             self._envs.append(env)

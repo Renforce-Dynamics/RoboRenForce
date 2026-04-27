@@ -32,6 +32,9 @@ def make_parser(benchmark_name: str) -> argparse.ArgumentParser:
                    help="Override log directory (default: logs/RFRL/<task>/<ts>).")
     p.add_argument("--checkpoint", default=None,
                    help="Optional pretrained checkpoint to load into the policy.")
+    p.add_argument("--obs_mode", default=None,
+                   help="Override env_cfg.obs_mode if supported by the adapter "
+                        "(e.g. 'state' to skip GPU rendering on systems without Vulkan).")
     return p
 
 
@@ -68,6 +71,8 @@ def run(args: argparse.Namespace) -> int:
     if args.num_envs is not None:
         env_cfg.num_envs = args.num_envs
     env_cfg.device = device
+    if args.obs_mode is not None and hasattr(env_cfg, "obs_mode"):
+        env_cfg.obs_mode = args.obs_mode
 
     if args.max_iterations is not None:
         # Both VLAGRPORunner and VLAPPORunner take num_iterations as a learn() arg,

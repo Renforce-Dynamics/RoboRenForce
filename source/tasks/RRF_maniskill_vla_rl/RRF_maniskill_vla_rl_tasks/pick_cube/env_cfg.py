@@ -17,6 +17,9 @@ class ManiSkillPickCubeEnvCfg:
     state_dim: int = 25
     max_episode_steps: int = 200
     reward_coef: float = 1.0
+    obs_mode: str = "rgbd"
+    control_mode: str = "pd_ee_delta_pose"
+    reward_mode: str = "dense"
 
     def build(self) -> ManiSkillRRFEnv:
         env_dict = {
@@ -26,8 +29,8 @@ class ManiSkillPickCubeEnvCfg:
             "state_dim": self.state_dim,
             "max_episode_steps": self.max_episode_steps,
             "reward_coef": self.reward_coef,
-            "obs_mode": "rgbd",
-            "control_mode": "pd_ee_delta_pose",
-            "reward_mode": "dense",
+            "obs_mode": self.obs_mode,
+            "control_mode": self.control_mode,
+            "reward_mode": self.reward_mode,
         }
         return ManiSkillRRFEnv(env_dict, num_envs=self.num_envs, device=self.device)
