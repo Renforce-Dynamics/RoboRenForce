@@ -89,21 +89,39 @@ class LoggerBase:
         """Log an informational message to console."""
         print(f"[Info]  {msg}")
 
-    def log_dict_infos(self, tab, it, tag, pad, writer):
+    def log_dict_infos(self, tab, it, tag, pad, writer=None):
         """Format a dict of metrics as a padded string and log scalars."""
+        if writer is None:
+            writer = self.writer
         ret_string = ""
         for key, value in tab.items():
-            if isinstance(value, (int, float)):
-                pass
-            elif isinstance(value, torch.Tensor) and value.numel() > 0:
-                value = value.mean().item()
-            else:
+            value = self._coerce_scalar(value)
+            if value is None:
                 continue
-            writer.add_scalar(
-                f"{tag}/{key}", value, it
-            )
+            if writer is not None:
+                writer.add_scalar(f"{tag}/{key}", value, it)
             ret_string += f"{f'{tag}/':>{self.cfg.tag_pad}}{f'{key}:':>{pad-self.cfg.tag_pad}} " + f"{value:.4f}\n"
         return ret_string
+
+    @staticmethod
+    def _coerce_scalar(value):
+        """Return value as a python float, or None if not a scalar-like input."""
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, torch.Tensor) and value.numel() > 0:
+            return float(value.mean().item())
+        return None
+
+    @staticmethod
+    def _format_time(seconds: float) -> str:
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        if seconds < 3600:
+            m, s = divmod(seconds, 60)
+            return f"{int(m)}m{int(s)}s"
+        h, rem = divmod(seconds, 3600)
+        m, _ = divmod(rem, 60)
+        return f"{int(h)}h{int(m)}m"
 
     # ===================================================================== #
     # RL-specific logging (for OnPolicyRunner / OffPolicyRunner etc.)
@@ -181,10 +199,10 @@ class LoggerBase:
         return ep_string
 
     def _log_alg_update_infos(self, runner, locs, pad):
-        return self.log_dict_infos(tab=locs["alg_update_infos"], it=locs["it"], tag="Update", pad=pad, writer=self.writer)
+        return self.log_dict_infos(tab=locs["alg_update_infos"], it=locs["it"], tag="Update", pad=pad)
 
     def _log_sample_infos(self, runner, locs, pad):
-        return self.log_dict_infos(tab=locs["sample_infos"], it=locs["it"], tag="Sample", pad=pad, writer=self.writer)
+        return self.log_dict_infos(tab=locs["sample_infos"], it=locs["it"], tag="Sample", pad=pad)
 
     def _log_statistics_string(self, runner, locs, pad):
         if len(runner.rewbuffer) == 0:

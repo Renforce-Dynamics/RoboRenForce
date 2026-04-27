@@ -107,23 +107,6 @@ class SupervisedLogger(LoggerBase):
             f"[Done]  {total_steps} steps in {self._format_time(total_time)}"
         )
 
-    # ===================================================================== #
-    # Internals
-    # ===================================================================== #
-
-    @staticmethod
-    def _format_time(seconds: float) -> str:
-        """Format seconds into a human-readable string."""
-        if seconds < 60:
-            return f"{seconds:.1f}s"
-        elif seconds < 3600:
-            m, s = divmod(seconds, 60)
-            return f"{int(m)}m{int(s)}s"
-        else:
-            h, rem = divmod(seconds, 3600)
-            m, s = divmod(rem, 60)
-            return f"{int(h)}h{int(m)}m"
-
 
 @configclass
 class SupervisedLoggerCfg(LoggerBaseCfg):
