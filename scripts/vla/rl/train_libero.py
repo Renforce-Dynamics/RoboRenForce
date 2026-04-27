@@ -16,7 +16,7 @@ if _HERE not in sys.path:
 
 import torch  # noqa: F401
 
-import RRF_libero_vla_rl_tasks  # noqa: F401  registers LIBERO-*-GRPO-v0
+import RRF_libero_tasks.vla_rl  # noqa: F401  registers LIBERO-*-GRPO-v0
 
 from _common import make_parser, run
 

@@ -13,7 +13,7 @@ What it does:
 This is the smallest end-to-end demonstration that env / inference / learner
 processes are wired correctly. Adapt by swapping `_TrajEmittingEnvWorkerCfg`
 for a real `BaseEnvWorker` subclass (e.g. `RoboTwinPlaceCupEnvWorkerCfg` from
-`RRF_robotwin_vla_rl_tasks`) and the noop policy + algorithm for a real
+`RRF_robotwin_tasks.vla_rl`) and the noop policy + algorithm for a real
 `VLAActor` + `GRPOAlgorithm`.
 """
 

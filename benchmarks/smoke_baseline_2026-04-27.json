@@ -1,0 +1,55 @@
+{
+  "date": "2026-04-27",
+  "policy": "Qwen2-VL-2B-Instruct (frozen, no SFT/pretrain)",
+  "algo": "GRPO",
+  "group_size": 8,
+  "host": {
+    "gpu": "8x NVIDIA H100 80GB HBM3",
+    "driver": "535.129.03",
+    "torch": "2.7.0+cu126",
+    "python": "3.10"
+  },
+  "results": [
+    {
+      "task": "LIBERO-Spatial-GRPO-v0",
+      "num_envs": 4,
+      "iterations": 1,
+      "return": 0.0,
+      "success_rate": 1.0,
+      "loss": 0.0,
+      "kl": 0.0009,
+      "wallclock_s": 560.1,
+      "status": "ok"
+    },
+    {
+      "task": "CALVIN-D-GRPO-v0",
+      "num_envs": 2,
+      "iterations": 1,
+      "return": 0.0,
+      "success_rate": 1.0,
+      "loss": 0.0,
+      "kl": 0.0002,
+      "wallclock_s": 577.3,
+      "status": "ok"
+    },
+    {
+      "task": "ManiSkill-PickCube-GRPO-v0",
+      "obs_mode": "state",
+      "num_envs": 8,
+      "iterations": 1,
+      "wallclock_s": 93.0,
+      "status": "ok",
+      "note": "prior smoke; rgbd mode blocked by SAPIEN render hang"
+    },
+    {
+      "task": "RoboTwin-PlaceCup-GRPO-v0",
+      "status": "blocked",
+      "note": "SAPIEN cam.get_picture hangs in nvidia-eglcore::poll on H100 even after Vulkan loader install"
+    }
+  ],
+  "notes": [
+    "success_rate=1.0 means episodes completed without crash (frozen policy, no real task solving)",
+    "return=0 / loss=0 expected for frozen Qwen2-VL with one GRPO step",
+    "wallclock dominated by VLM forward (Qwen2-VL-2B), not physics"
+  ]
+}

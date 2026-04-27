@@ -13,7 +13,7 @@ from __future__ import annotations
 import gymnasium as gym
 
 
-_ENTRY_POINT = "RRF_robotwin_vla_rl_tasks._registry:_dummy_entry"
+_ENTRY_POINT = "RRF_robotwin_tasks.vla_rl._registry:_dummy_entry"
 
 
 def _dummy_entry(*args, **kwargs):

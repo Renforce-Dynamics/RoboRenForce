@@ -16,7 +16,7 @@ def register_maniskill_task(task_id: str, env_cfg, runner_cfg) -> None:
     gym.envs.registry.pop(task_id, None)
     gym.register(
         id=task_id,
-        entry_point="RRF_maniskill_vla_rl_tasks._registry:_dummy_entry",
+        entry_point="RRF_maniskill_tasks.vla_rl._registry:_dummy_entry",
         disable_env_checker=True,
         kwargs={
             "env_cfg_entry_point": env_cfg,

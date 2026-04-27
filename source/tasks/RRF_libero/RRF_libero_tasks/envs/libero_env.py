@@ -178,16 +178,29 @@ class LiberoRRFEnv(EmbodiedEnv):
             self._envs.append(env)
             self._task_descriptions.append(task.language)
 
+    def _fit_state_dim(self, states: torch.Tensor) -> torch.Tensor:
+        """Clip/pad the last dim of `states` to `self.state_dim`."""
+        if states.shape[-1] > self.state_dim:
+            return states[..., : self.state_dim]
+        if states.shape[-1] < self.state_dim:
+            pad = torch.zeros(
+                *states.shape[:-1], self.state_dim - states.shape[-1],
+                dtype=states.dtype, device=states.device,
+            )
+            return torch.cat([states, pad], dim=-1)
+        return states
+
     def _batch_obs(self, raw_obs_list: list[dict]) -> dict[str, Any]:
         """Stack per-env observations into batched tensors."""
         extracted = [_extract_obs(o, self.has_wrist_camera) for o in raw_obs_list]
+        states_t = torch.from_numpy(
+            np.stack([e["state"] for e in extracted])
+        ).to(self.device)
         result = {
             "main_images": torch.from_numpy(
                 np.stack([e["main_image"] for e in extracted])
             ).to(self.device),
-            "states": torch.from_numpy(
-                np.stack([e["state"] for e in extracted])
-            ).to(self.device),
+            "states": self._fit_state_dim(states_t),
             "task_descriptions": list(self._task_descriptions),
         }
         if self.has_wrist_camera and "wrist_image" in extracted[0]:

@@ -17,6 +17,7 @@ Dependencies:
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -154,6 +155,22 @@ class RoboTwinEnv(EmbodiedEnv):
                 "  pip install sapien==3.0.1 mplib==0.2.1"
             )
 
+        # RoboTwin upstream `_base_task.setup_scene` unconditionally selects the
+        # ray-tracing shader pipeline (`set_camera_shader_dir("rt")`) and the
+        # OIDN denoiser. On hosts without a working RT-capable Vulkan ICD
+        # (e.g. when forced onto Mesa LLVMpipe via `VK_ICD_FILENAMES=lvp_icd.json`)
+        # this hangs forever in the Vulkan command buffer. Force the default
+        # rasterization shader unless the user explicitly opts back into RT.
+        if os.environ.get("RRF_ROBOTWIN_DISABLE_RT", "1") != "0":
+            try:
+                import sapien.render as _sr
+                _sr.set_camera_shader_dir = lambda *_, **__: None
+                _sr.set_ray_tracing_samples_per_pixel = lambda *_, **__: None
+                _sr.set_ray_tracing_path_depth = lambda *_, **__: None
+                _sr.set_ray_tracing_denoiser = lambda *_, **__: None
+            except Exception:
+                pass
+
         task_config = {
             "task_name": self.task_cfg.task_name,
             "planner_backend": self.task_cfg.planner_backend,
@@ -184,6 +201,23 @@ class RoboTwinEnv(EmbodiedEnv):
             n_envs=self.num_envs,
             env_seeds=seeds,
         )
+
+    def _fit_state_dim(self, states: torch.Tensor) -> torch.Tensor:
+        """Clip/pad the last dim of `states` to `self.state_dim`.
+
+        RoboTwin upstream qpos width depends on the chosen embodiment (single
+        arm vs bimanual + gripper), so policies that hard-code state_dim
+        crash on mismatch unless we normalize here.
+        """
+        if states.shape[-1] > self.state_dim:
+            return states[..., : self.state_dim]
+        if states.shape[-1] < self.state_dim:
+            pad = torch.zeros(
+                *states.shape[:-1], self.state_dim - states.shape[-1],
+                dtype=states.dtype, device=states.device,
+            )
+            return torch.cat([states, pad], dim=-1)
+        return states
 
     def _extract_obs(self, raw_obs_list: list[dict]) -> dict[str, Any]:
         """Convert per-env observations to batched obs dict."""
@@ -218,7 +252,8 @@ class RoboTwinEnv(EmbodiedEnv):
             "task_descriptions": [self._task_description] * self.num_envs,
         }
         if states:
-            result["states"] = torch.from_numpy(np.stack(states)).float().to(self.device)
+            states_t = torch.from_numpy(np.stack(states)).float().to(self.device)
+            result["states"] = self._fit_state_dim(states_t)
         if wrist_images:
             result["wrist_images"] = torch.from_numpy(np.stack(wrist_images)).to(self.device)
 

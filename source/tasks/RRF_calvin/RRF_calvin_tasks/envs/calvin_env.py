@@ -149,17 +149,32 @@ class CalvinRRFEnv(EmbodiedEnv):
             env = PlayTableSimEnv(**env_kwargs)
             self._envs.append(env)
 
+    def _fit_state_dim(self, states: torch.Tensor) -> torch.Tensor:
+        """Clip/pad the last dim of `states` to `self.state_dim`."""
+        if states.shape[-1] > self.state_dim:
+            return states[..., : self.state_dim]
+        if states.shape[-1] < self.state_dim:
+            pad = torch.zeros(
+                *states.shape[:-1], self.state_dim - states.shape[-1],
+                dtype=states.dtype, device=states.device,
+            )
+            return torch.cat([states, pad], dim=-1)
+        return states
+
     def _extract_obs(self, raw_obs: dict) -> dict:
         """Extract standard obs from single CALVIN env observation."""
         return {
             "main_image": raw_obs["rgb_obs"]["rgb_static"],
             "wrist_image": raw_obs["rgb_obs"]["rgb_gripper"],
-            "state": raw_obs["robot_obs"][:7].astype(np.float32),
+            "state": raw_obs["robot_obs"][: self.state_dim].astype(np.float32),
         }
 
     def _batch_obs(self, raw_obs_list: list[dict]) -> dict[str, Any]:
         """Stack per-env observations into batched tensors."""
         extracted = [self._extract_obs(o) for o in raw_obs_list]
+        states_t = torch.from_numpy(
+            np.stack([e["state"] for e in extracted])
+        ).to(self.device)
         result = {
             "main_images": torch.from_numpy(
                 np.stack([e["main_image"] for e in extracted])
@@ -167,9 +182,7 @@ class CalvinRRFEnv(EmbodiedEnv):
             "wrist_images": torch.from_numpy(
                 np.stack([e["wrist_image"] for e in extracted])
             ).to(self.device),
-            "states": torch.from_numpy(
-                np.stack([e["state"] for e in extracted])
-            ).to(self.device),
+            "states": self._fit_state_dim(states_t),
             "task_descriptions": list(self._task_descriptions),
         }
         return result

@@ -35,6 +35,11 @@ def make_parser(benchmark_name: str) -> argparse.ArgumentParser:
     p.add_argument("--obs_mode", default=None,
                    help="Override env_cfg.obs_mode if supported by the adapter "
                         "(e.g. 'state' to skip GPU rendering on systems without Vulkan).")
+    p.add_argument("--render_backend", default=None,
+                   help="Override env_cfg.render_backend if supported "
+                        "(e.g. 'cpu' to use Mesa lvp software Vulkan when host lacks NVIDIA graphics capability).")
+    p.add_argument("--sim_backend", default=None,
+                   help="Override env_cfg.sim_backend if supported (e.g. 'physx_cpu').")
     return p
 
 
@@ -73,6 +78,10 @@ def run(args: argparse.Namespace) -> int:
     env_cfg.device = device
     if args.obs_mode is not None and hasattr(env_cfg, "obs_mode"):
         env_cfg.obs_mode = args.obs_mode
+    if args.render_backend is not None and hasattr(env_cfg, "render_backend"):
+        env_cfg.render_backend = args.render_backend
+    if args.sim_backend is not None and hasattr(env_cfg, "sim_backend"):
+        env_cfg.sim_backend = args.sim_backend
 
     if args.max_iterations is not None:
         # Both VLAGRPORunner and VLAPPORunner take num_iterations as a learn() arg,

@@ -41,6 +41,8 @@ class ManiSkillTaskConfig:
     obs_mode: str = "rgbd"
     control_mode: str = "pd_ee_delta_pose"
     reward_mode: str = "dense"
+    sim_backend: str = "auto"
+    render_backend: str = "gpu"
     seed: int = 0
     reward_coef: float = 1.0
 
@@ -102,6 +104,24 @@ class ManiSkillRRFEnv(EmbodiedEnv):
                 "  pip install mani_skill"
             )
 
+        # ManiSkill's parse_backend_device_id splits on every ':' and unpacks
+        # to 2 values, breaking on PCI device strings like 'pci:00:00:00.0'
+        # (used to force Mesa lvp software Vulkan when host lacks NVIDIA
+        # graphics capability). For 'pci:*' we keep the whole string so the
+        # downstream `sapien.Device(render_backend)` fallback receives it
+        # intact; for normal 'cuda:N' we keep the original behaviour.
+        from mani_skill.envs.utils.system import backend as _ms_backend
+        if not getattr(_ms_backend, "_rrf_parser_patched", False):
+            def _parse(b):
+                if isinstance(b, str) and b.startswith("pci:"):
+                    return b, None
+                if isinstance(b, str) and ":" in b:
+                    head, rest = b.split(":", 1)
+                    return head, rest
+                return b, None
+            _ms_backend.parse_backend_device_id = _parse
+            _ms_backend._rrf_parser_patched = True
+
         self._env = gym.make(
             cfg["task_name"],
             num_envs=num_envs,
@@ -109,7 +129,21 @@ class ManiSkillRRFEnv(EmbodiedEnv):
             control_mode=cfg.get("control_mode", "pd_ee_delta_pose"),
             reward_mode=cfg.get("reward_mode", "dense"),
             max_episode_steps=cfg.get("max_episode_steps", 200),
+            sim_backend=cfg.get("sim_backend", "auto"),
+            render_backend=cfg.get("render_backend", "gpu"),
         )
+
+    def _fit_state_dim(self, states: torch.Tensor) -> torch.Tensor:
+        """Clip/pad the last dim of `states` to `self.state_dim`."""
+        if states.shape[-1] > self.state_dim:
+            return states[..., : self.state_dim]
+        if states.shape[-1] < self.state_dim:
+            pad = torch.zeros(
+                *states.shape[:-1], self.state_dim - states.shape[-1],
+                dtype=states.dtype, device=states.device,
+            )
+            return torch.cat([states, pad], dim=-1)
+        return states
 
     def _wrap_obs(self, raw_obs, info=None) -> dict[str, Any]:
         """Convert ManiSkill observation to EmbodiedEnv format."""
@@ -136,6 +170,7 @@ class ManiSkillRRFEnv(EmbodiedEnv):
                 states = qpos.to(self.device, dtype=torch.float32)
             except Exception:
                 states = torch.zeros(self.num_envs, self.state_dim, device=self.device)
+            states = self._fit_state_dim(states)
 
             # Language instruction
             try:
@@ -150,15 +185,7 @@ class ManiSkillRRFEnv(EmbodiedEnv):
         elif isinstance(raw_obs, torch.Tensor):
             # State-only mode — clip/pad to configured state_dim so policy fusion
             # layer can consume it without redefining input dimensions.
-            states = raw_obs.to(self.device, dtype=torch.float32)
-            if states.shape[-1] > self.state_dim:
-                states = states[..., : self.state_dim]
-            elif states.shape[-1] < self.state_dim:
-                pad = torch.zeros(
-                    *states.shape[:-1], self.state_dim - states.shape[-1],
-                    dtype=states.dtype, device=states.device,
-                )
-                states = torch.cat([states, pad], dim=-1)
+            states = self._fit_state_dim(raw_obs.to(self.device, dtype=torch.float32))
             return {
                 "main_images": torch.zeros(
                     self.num_envs, *self.image_size, 3, dtype=torch.uint8, device=self.device

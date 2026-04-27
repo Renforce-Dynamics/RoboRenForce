@@ -20,6 +20,8 @@ class ManiSkillPickCubeEnvCfg:
     obs_mode: str = "rgbd"
     control_mode: str = "pd_ee_delta_pose"
     reward_mode: str = "dense"
+    sim_backend: str = "auto"
+    render_backend: str = "gpu"
 
     def build(self) -> ManiSkillRRFEnv:
         env_dict = {
@@ -32,5 +34,7 @@ class ManiSkillPickCubeEnvCfg:
             "obs_mode": self.obs_mode,
             "control_mode": self.control_mode,
             "reward_mode": self.reward_mode,
+            "sim_backend": self.sim_backend,
+            "render_backend": self.render_backend,
         }
         return ManiSkillRRFEnv(env_dict, num_envs=self.num_envs, device=self.device)
