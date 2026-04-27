@@ -1,10 +1,12 @@
 """
 Psi0 G1 Dex3 PickApple Dataset Entry
 
-Source: Psi0 project — humanoid apple-picking demonstrations
-Robot: Unitree G1 Dex3
-Format: LeRobot v2 (per-episode parquet)
-Specs: 201 episodes, ~152K frames, 28D raw action → 36D standardized, 32D state
+Source:    https://github.com/physical-superintelligence-lab/Psi0
+Hub:       https://huggingface.co/datasets/USC-PSI-Lab/psi-data
+Download:  python scripts/data/download_psi0_dataset.py --task <task> --split real|simple
+Robot:     Unitree G1 Dex3
+Format:    LeRobot v2 (per-episode parquet + mp4)
+Specs:     201 episodes, ~152K frames, 28D raw action -> 36D standardized, 32D state
 """
 
 from __future__ import annotations

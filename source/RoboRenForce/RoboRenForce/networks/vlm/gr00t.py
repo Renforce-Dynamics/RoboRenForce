@@ -23,27 +23,6 @@ from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.networks.vlm.vlm_backbone_base import VLMBackbone, VLMBackboneCfg
 
 
-@configclass
-class GR00TCfg(VLMBackboneCfg):
-    """GR00T N1.7 configuration."""
-
-    class_type: type["GR00T"] = None  # Set after class definition
-    model_name: str = "nvidia/GR00T-N1.7-3B"
-    output_dim: int = 2048
-    freeze: bool = True
-
-    # Embodiment
-    embodiment_tag: str = "new_embodiment"  # Robot type tag
-
-    # Feature extraction
-    pooling_method: str = "last"
-    use_bf16: bool = True
-    extract_features_only: bool = True
-
-    # Temporal
-    num_frames: int = 1  # Number of temporal frames for video input
-
-
 class GR00T(VLMBackbone):
     """NVIDIA GR00T N1.7 vision-language backbone.
 
@@ -55,7 +34,7 @@ class GR00T(VLMBackbone):
     use GR00TPolicy with extract_features_only=False.
     """
 
-    def __init__(self, cfg: GR00TCfg):
+    def __init__(self, cfg: "GR00TCfg"):
         super().__init__(cfg)
         self._model = None
         self._processor = None
@@ -266,5 +245,19 @@ class GR00T(VLMBackbone):
             return self._fallback_proj(image)
 
 
-# Fix circular reference
-GR00TCfg.class_type = GR00T
+@configclass
+class GR00TCfg(VLMBackboneCfg):
+    """GR00T N1.7 configuration."""
+
+    class_type: type[GR00T] = GR00T
+    model_name: str = "nvidia/GR00T-N1.7-3B"
+    output_dim: int = 2048
+    freeze: bool = True
+
+    embodiment_tag: str = "new_embodiment"
+
+    pooling_method: str = "last"
+    use_bf16: bool = True
+    extract_features_only: bool = True
+
+    num_frames: int = 1
