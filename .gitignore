@@ -49,6 +49,23 @@ logs/
 data/dummy_dataset
 data/lerobot
 data/assets/*
+data/gr00t/
+data/psi0/
+
+# HuggingFace model/dataset cache
+.hf_cache/
+.cache/huggingface/
+
+# Local training outputs
+outputs/
+runs/
+wandb/
+
+# Auto-generated egg-info copies
+source/**/*.egg-info/
+
+# Nested standalone repo (handled separately)
+source/robotlib/
 
 # Documentation and references
 pyrightconfig.json
