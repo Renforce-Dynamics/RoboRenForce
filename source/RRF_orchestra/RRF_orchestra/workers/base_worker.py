@@ -25,8 +25,8 @@ from typing import Optional
 from RoboRenForce.utils.configclass import configclass
 from RoboRenForce.utils.template import ClassTemplateBase, ClassTemplateBaseCfg
 
-from RRF_distributed.protocol.channels import Channel
-from RRF_distributed.protocol.messages import ControlMsg
+from RRF_orchestra.protocol.channels import Channel
+from RRF_orchestra.protocol.messages import ControlMsg
 
 
 @configclass

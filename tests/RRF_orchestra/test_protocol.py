@@ -12,20 +12,20 @@ import pytest
 import torch
 import torch.multiprocessing as mp
 
-from RRF_distributed.protocol.channels import (
+from RRF_orchestra.protocol.channels import (
     ActionChannel,
     ControlChannel,
     ObsChannel,
     TrajChannel,
 )
-from RRF_distributed.protocol.messages import (
+from RRF_orchestra.protocol.messages import (
     PROTOCOL_VERSION,
     ActionBatch,
     ControlMsg,
     ObsBatch,
     Trajectory,
 )
-from RRF_distributed.protocol.shared_tensor import SharedTensorRef
+from RRF_orchestra.protocol.shared_tensor import SharedTensorRef
 
 
 # ----- SharedTensorRef ------------------------------------------------------

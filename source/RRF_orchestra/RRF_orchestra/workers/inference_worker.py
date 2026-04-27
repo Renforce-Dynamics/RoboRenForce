@@ -22,11 +22,11 @@ import torch
 
 from RoboRenForce.utils.configclass import configclass
 
-from RRF_distributed.protocol.channels import Channel
-from RRF_distributed.protocol.messages import ActionBatch, ObsBatch
-from RRF_distributed.protocol.shared_tensor import SharedTensorRef
-from RRF_distributed.workers.base_worker import BaseWorker, BaseWorkerCfg
-from RRF_distributed.workers.batcher import DynamicBatcher, FixedBatcher
+from RRF_orchestra.protocol.channels import Channel
+from RRF_orchestra.protocol.messages import ActionBatch, ObsBatch
+from RRF_orchestra.protocol.shared_tensor import SharedTensorRef
+from RRF_orchestra.workers.base_worker import BaseWorker, BaseWorkerCfg
+from RRF_orchestra.workers.batcher import DynamicBatcher, FixedBatcher
 
 PolicyFactory = Callable[[], Any]
 Batcher = Union[FixedBatcher, DynamicBatcher]

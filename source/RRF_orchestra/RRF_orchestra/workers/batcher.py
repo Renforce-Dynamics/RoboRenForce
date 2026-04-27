@@ -10,8 +10,8 @@ Two strategies, picked per benchmark:
 
 from __future__ import annotations
 
-from RRF_distributed.protocol.channels import Channel
-from RRF_distributed.protocol.messages import ObsBatch
+from RRF_orchestra.protocol.channels import Channel
+from RRF_orchestra.protocol.messages import ObsBatch
 
 
 class FixedBatcher:

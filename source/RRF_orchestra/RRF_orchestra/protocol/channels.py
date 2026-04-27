@@ -13,7 +13,7 @@ from typing import Generic, Optional, TypeVar
 
 import torch.multiprocessing as mp
 
-from RRF_distributed.protocol.messages import (
+from RRF_orchestra.protocol.messages import (
     ActionBatch,
     ControlMsg,
     ObsBatch,

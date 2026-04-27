@@ -12,7 +12,7 @@ from typing import Any, Literal, Optional, Union
 
 from RoboRenForce.utils.configclass import configclass
 
-from RRF_distributed.protocol.shared_tensor import SharedTensorRef
+from RRF_orchestra.protocol.shared_tensor import SharedTensorRef
 
 PROTOCOL_VERSION: int = 1
 

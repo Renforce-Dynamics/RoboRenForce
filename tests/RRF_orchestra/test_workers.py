@@ -19,20 +19,20 @@ import torch.multiprocessing as mp
 
 from RoboRenForce.utils.configclass import configclass
 
-from RRF_distributed.protocol.channels import (
+from RRF_orchestra.protocol.channels import (
     ActionChannel,
     ControlChannel,
     ObsChannel,
 )
-from RRF_distributed.protocol.messages import ControlMsg, ObsBatch
-from RRF_distributed.protocol.shared_tensor import SharedTensorRef
-from RRF_distributed.workers.base_worker import BaseWorker, BaseWorkerCfg
-from RRF_distributed.workers.env_worker import BaseEnvWorker, BaseEnvWorkerCfg
-from RRF_distributed.workers.inference_worker import (
+from RRF_orchestra.protocol.messages import ControlMsg, ObsBatch
+from RRF_orchestra.protocol.shared_tensor import SharedTensorRef
+from RRF_orchestra.workers.base_worker import BaseWorker, BaseWorkerCfg
+from RRF_orchestra.workers.env_worker import BaseEnvWorker, BaseEnvWorkerCfg
+from RRF_orchestra.workers.inference_worker import (
     InferenceWorker,
     InferenceWorkerCfg,
 )
-from RRF_distributed.workers.batcher import DynamicBatcher, FixedBatcher
+from RRF_orchestra.workers.batcher import DynamicBatcher, FixedBatcher
 
 CTX = mp.get_context("spawn")
 

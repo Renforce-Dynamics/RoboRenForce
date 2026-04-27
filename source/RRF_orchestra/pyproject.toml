@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "RRF_orchestra"
+version = "0.1.0"
+description = "Process-level (rollout/inference/learner) parallelism for VLA RL training in RoboRenForce."
+requires-python = ">=3.10"
+# RoboRenForce-core is a sibling editable install in this monorepo
+# (`pip install -e source/RoboRenForce`); it is intentionally NOT pinned here
+# so that pip does not try to resolve it from PyPI.
+dependencies = [
+    "torch",
+]
+
+[tool.setuptools.packages.find]
+include = ["RRF_orchestra*"]

@@ -75,6 +75,9 @@ pip install -e source/tasks/RRF_mjlab       # MJLab (MuJoCo Warp) locomotion
 pip install -e source/tasks/RRF_robotwin    # RoboTwin manipulation
 pip install -e source/tasks/RRF_humanoid_psi0  # Humanoid offline tasks
 
+# Role-distributed VLA RL training (opt-in — see "Parallelism" section)
+pip install -e source/RRF_orchestra
+
 # External setup (robot assets, etc.)
 bash scripts/setup_ext.sh
 ```
@@ -415,6 +418,13 @@ RoboRenForce/
 │   │       └── utils/                  # Config system, env wrappers, tools
 │   │           ├── configclass/       #   @configclass decorator
 │   │           └── env_wrapper/       #   Lab, Gym, VLA wrapper chains
+│   ├── RRF_orchestra/                  # Role-distributed runner (opt-in)
+│   │   └── RRF_orchestra/              #   rollout / inference / learner role-split
+│   │       ├── protocol/              #     Wire protocol (messages, channels, shared_tensor)
+│   │       ├── workers/               #     Env / Inference workers + batchers
+│   │       ├── orchestrator/          #     Topology, Supervisor, OrchestraVLARunner
+│   │       ├── adapters/              #     Algorithm + policy adapters
+│   │       └── examples/              #     hello_world_orchestra
 │   └── tasks/                          # Task packages
 │       ├── RRF_isaaclab/              #   Isaac Lab locomotion & manipulation
 │       ├── RRF_mjlab/                 #   MJLab (MuJoCo Warp) locomotion
@@ -443,9 +453,18 @@ RoboRenForce/
 
 ---
 
-## Multi-GPU Training (DDP)
+## Parallelism: Two Independent Axes
 
-RoboRenForce supports distributed training via PyTorch DDP for VLA workloads:
+RoboRenForce ships with two **orthogonal** parallelism mechanisms — they solve different problems and can be composed.
+
+| Axis | Where it lives | Problem solved | Typical use |
+|---|---|---|---|
+| **Data-parallel (DDP)** | `RoboRenForce/runners/vla/{pretrain,post_train}/*_runner_distributed.py` + `scripts/vla/{pretrain,post_train}/train_*_ddp.py` | Single GPU is too small / too slow for the desired batch. **Same role on every rank**, gradients all-reduced via NCCL. | VLA **pretrain** / **SFT** on N GPUs, launched with `torchrun --nproc_per_node=N` |
+| **Role-distributed (Orchestra)** | [`source/RRF_orchestra/`](source/RRF_orchestra/) — opt-in package | CPU sim and GPU inference idle waiting on each other. **One process per role**: `EnvWorker × N`, `InferenceWorker × 1`, `Learner × 1`. Tensors moved over `torch.multiprocessing.Queue` with shared-memory zero-copy. | VLA **RL fine-tuning** on a single machine; VLA model dominates step time and you want batched inference across N parallel envs |
+
+The two axes compose cleanly — e.g. role-distributed rollout + DDP learner — though v1 keeps them decoupled.
+
+### Data-parallel (DDP)
 
 ```bash
 # VLA Pretraining — 4 GPUs
@@ -469,6 +488,38 @@ torchrun --nproc_per_node=2 scripts/vla/post_train/train_sft_ddp.py \
 - `DistributedSampler` with proper epoch shuffling
 
 </details>
+
+### Role-distributed (Orchestra)
+
+`RRF_orchestra` runs each role (env / inference / learner) in its own process. Large tensors travel through shared memory (zero-copy); only small handles and metadata go through `mp.Queue`. The `OrchestraVLARunner` is a drop-in replacement for the single-process VLA RL runner.
+
+```
+   EnvWorker × N           InferenceWorker × 1         Learner × 1
+   ┌───────────┐  ObsBatch  ┌─────────────────┐         ┌─────────┐
+   │ env.step  │ ─────────▶ │ batched VLA inf │ ──────▶ │ collect │
+   │           │ ◀───────── │ ActionBatch     │         │ traj    │
+   └─────┬─────┘            └────────▲────────┘         │ grad    │
+         │ Trajectory                 │ WeightUpdate    │ update  │
+         ▼                            └─────────────────┤         │
+   ┌──────────────────────────────────────────────────────┘
+   │              channels (mp.Queue + shared-mem tensors)
+   └────────────────────────────────────────────────────────
+```
+
+```bash
+# Install (opt-in — keeps core repo light for single-process users)
+pip install -e source/RRF_orchestra
+
+# End-to-end smoke (2 env workers + 1 inference + 1 learner, 5 iterations)
+python -m RRF_orchestra.examples.hello_world_orchestra
+
+# 20 unit / integration tests (mp + shared-memory + orchestrator round-trip)
+pytest tests/RRF_orchestra/ -v
+```
+
+See [`source/RRF_orchestra/README.md`](source/RRF_orchestra/README.md) for the user guide and [`docs/PLAN-task3-orchestra-package.md`](docs/PLAN-task3-orchestra-package.md) for the full design (wire protocol, topology, per-task `EnvWorker` integration).
+
+> **Naming note**: this package was previously called `RRF_distributed`. It was renamed to `RRF_orchestra` to disambiguate from the data-parallel `*_runner_distributed.py` files (PyTorch DDP). The two are independent axes.
 
 ---
 
