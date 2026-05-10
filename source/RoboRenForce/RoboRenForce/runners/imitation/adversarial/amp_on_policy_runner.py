@@ -22,7 +22,6 @@ from RoboRenForce.utils.logging import timeit
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from RRF_isaaclab_tasks.env_wrapper.adversarial_wrapper import (
-        AMPEnvWrapper,
         MotionDataset,
         MotionDatasetCfg,
     )
@@ -48,11 +47,20 @@ class AMPOnPolicyImitationRunner(BaseRunner):
         super().__init__(train_cfg=train_cfg, env=env, log_dir=log_dir, device=device)
 
     def init_components(self):
-        """Initialize policy, discriminator, AMP dataset and algorithm."""
-        # Wrap env with AMP wrapper to expose AMP observations
-        if not isinstance(self.env, AMPEnvWrapper):
-            # re-wrap underlying vec env
-            self.env = AMPEnvWrapper(self.env.env, clip_actions=self.env.clip_actions)
+        """Initialize policy, discriminator, AMP dataset and algorithm.
+
+        ``self.env`` must already be wrapped with a backend-specific AMP
+        wrapper that exposes ``get_amp_observations()`` and the seven-tuple
+        ``step(actions, not_amp=False)`` (e.g. the IsaacLab ``AMPEnvWrapper``
+        or :class:`MJLabAMPEnvWrapper`).
+        """
+        if not hasattr(self.env, "get_amp_observations"):
+            raise TypeError(
+                "AMP runner expects an env wrapper exposing "
+                "get_amp_observations(); got "
+                f"{type(self.env).__name__}. Wrap the env with the matching "
+                "AMP wrapper before constructing the runner."
+            )
 
         # Dimensions
         num_actor_obs = self.env.dim_params["policy_dim"]
@@ -80,12 +88,14 @@ class AMPOnPolicyImitationRunner(BaseRunner):
         # AMP normalizer
         self.amp_normalizer = RunningMeanStd(shape=amp_obs_dim, device=self.device)
 
-        # Discriminator
+        # Discriminator: build an MLP backbone matching ``amp_discr_hidden_dims``.
+        from RoboRenForce.networks.mlp import MLPCfg
         discr_input_dim = amp_obs_dim * 2
         discr_cfg = DiscriminatorCfg(
-            backbone_cfg=self.alg_cfg.discriminator_backbone_cfg,
-            amp_reward_coef=self.alg_cfg.amp_reward_coef,
-            task_reward_lerp=self.alg_cfg.amp_task_reward_lerp,
+            backbone_cfg=MLPCfg(
+                hidden_features=list(self.alg_cfg.amp_discr_hidden_dims),
+                activations=[[("ReLU", {})]] * len(self.alg_cfg.amp_discr_hidden_dims) + [[]],
+            ),
         )
         self.discriminator: Discriminator = discr_cfg.construct_from_cfg(
             input_dim=discr_input_dim,

@@ -108,3 +108,33 @@ def termination_statistics(pred, target, eps=1e-9):
 	f1 = 2 * (precision * recall) / (precision + recall + eps)
 	return TensorDict({'termination_rate': rate,
 			'termination_f1': f1})
+
+
+@torch.jit.script
+def quat_apply(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+	"""Apply a quaternion rotation to a vector. Quaternion is (w, x, y, z)."""
+	shape = vec.shape
+	quat = quat.reshape(-1, 4)
+	vec = vec.reshape(-1, 3)
+	xyz = quat[:, 1:]
+	t = xyz.cross(vec, dim=-1) * 2
+	return (vec + quat[:, 0:1] * t + xyz.cross(t, dim=-1)).view(shape)
+
+
+@torch.jit.script
+def quat_apply_inverse(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+	"""Apply an inverse quaternion rotation to a vector. Quaternion is (w, x, y, z)."""
+	shape = vec.shape
+	quat = quat.reshape(-1, 4)
+	vec = vec.reshape(-1, 3)
+	xyz = quat[:, 1:]
+	t = xyz.cross(vec, dim=-1) * 2
+	return (vec - quat[:, 0:1] * t + xyz.cross(t, dim=-1)).view(shape)
+
+
+@torch.jit.script
+def quat_conjugate(q: torch.Tensor) -> torch.Tensor:
+	"""Conjugate of a unit quaternion (w, x, y, z) — equals its inverse."""
+	shape = q.shape
+	q = q.reshape(-1, 4)
+	return torch.cat((q[..., 0:1], -q[..., 1:]), dim=-1).view(shape)
