@@ -123,28 +123,78 @@ class OnPolicyRunner(BaseRunner):
         self.alg.process_env_step(reward, done, infos)
 
     def save(self, path, infos=None):
+        """Persist full runner state.
+
+        Persists: actor_critic, obs_normalizer, critic_normalizer,
+        optimizer, current iter, and adaptive-LR scalar (so KL-driven LR
+        schedule survives resume). Older ckpts without the new keys are
+        still loadable via the warn-if-missing branches in :meth:`load`.
+        """
         saved_dict = {
             "model_state_dict": self.actor_critic.state_dict(),
             "obs_norm_state_dict": self.obs_normalizer.state_dict(),
+            "critic_norm_state_dict": self.critic_normalizer.state_dict(),
             "optimizer_state_dict": self.alg.optimizer.state_dict(),
+            "alg_learning_rate": float(self.alg.learning_rate),
             "iter": self.current_learning_iteration,
             "infos": infos,
         }
         self.logger.save_model(saved_dict, path, self.current_learning_iteration)
 
-    def load(self, path, load_optimizer=True):
+    def load(self, path, load_optimizer=False):
+        """Restore runner state from a checkpoint.
+
+        ``load_optimizer`` defaults to ``False``. For same-task resume
+        pass ``True`` to keep Adam momentum; for cross-task fine-tune
+        leave it ``False`` so the new reward gradient is not blended
+        with stale momentum from the previous task.
+
+        Returns a status dict mapping each tracked field to one of
+        ``"loaded" | "missing" | "skipped"`` so callers can surface what
+        actually happened.
+        """
         loaded_dict = torch.load(path)
+        status: dict[str, str] = {}
+
         self.actor_critic.load_state_dict(loaded_dict["model_state_dict"])
-        
+        status["model"] = "loaded"
+
         if "obs_norm_state_dict" in loaded_dict:
             self.obs_normalizer.load_state_dict(loaded_dict["obs_norm_state_dict"])
-            print("[INFO]: Observation normalization parameters loaded successfully.")
+            status["obs_normalizer"] = "loaded"
         else:
-            print("[WARNING]: Normalization parameters not found in checkpoint!")
+            status["obs_normalizer"] = "missing"
 
-        if load_optimizer:
+        if "critic_norm_state_dict" in loaded_dict:
+            self.critic_normalizer.load_state_dict(loaded_dict["critic_norm_state_dict"])
+            status["critic_normalizer"] = "loaded"
+        else:
+            status["critic_normalizer"] = "missing"
+
+        if load_optimizer and "optimizer_state_dict" in loaded_dict:
             self.alg.optimizer.load_state_dict(loaded_dict["optimizer_state_dict"])
-        return loaded_dict["infos"]
+            status["optimizer"] = "loaded"
+        elif load_optimizer:
+            status["optimizer"] = "missing"
+        else:
+            status["optimizer"] = "skipped"
+
+        if "alg_learning_rate" in loaded_dict:
+            self.alg.learning_rate = float(loaded_dict["alg_learning_rate"])
+            for pg in self.alg.optimizer.param_groups:
+                pg["lr"] = self.alg.learning_rate
+            status["alg_learning_rate"] = "loaded"
+        else:
+            status["alg_learning_rate"] = "missing"
+
+        if "iter" in loaded_dict and loaded_dict["iter"] is not None:
+            self.current_learning_iteration = int(loaded_dict["iter"])
+            status["iter"] = "loaded"
+        else:
+            status["iter"] = "missing"
+
+        self._last_resume_status = status
+        return loaded_dict.get("infos")
 
     def get_inference_policy(self, device=None):
         if device is not None: self.actor_critic.to(device)
