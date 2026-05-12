@@ -16,7 +16,7 @@ from RoboRenForce.algorithms.imitation.adverserial import AMPPPOCfg
 # (uses ``env.scene[...]`` + ``find_bodies`` which both backends expose).
 from RRF_isaaclab_tasks.env_wrapper.adversarial_wrapper import MotionDatasetCfg
 
-from ..g1.amp_env_cfg import (
+from ..amp_env_cfg import (
     G1_AMP_OBS_TERMS,
     G1_ANCHOR_NAME,
     G1_KEY_BODY_NAMES,
