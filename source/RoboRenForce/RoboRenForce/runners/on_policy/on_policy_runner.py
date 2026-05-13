@@ -42,6 +42,10 @@ class OnPolicyRunner(BaseRunner):
         self.obs_normalizer.to(self.device)
         self.critic_normalizer.to(self.device)
 
+        # Route PPO's NaN guard dumps next to the run instead of /tmp.
+        if hasattr(self.alg, "nan_dump_dir") and self.log_dir is not None:
+            self.alg.nan_dump_dir = self.log_dir
+
     def learn(self, num_learning_iterations: int, init_at_random_ep_len: bool = False):
         self.logger.init_logger()
         if init_at_random_ep_len:

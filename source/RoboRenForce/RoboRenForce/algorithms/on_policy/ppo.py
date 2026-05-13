@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+import time
+import traceback
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -44,6 +48,10 @@ class PPO(AlgorithmBase):
             lr=self.learning_rate,
         )
 
+        # NaN guard: dump dir set by runner (see OnPolicyRunner.__init__);
+        # falls back to /tmp if the runner forgets.
+        self.nan_dump_dir: str | None = None
+
     # --------------------------------------------------------------------- #
     # rollout & mode
     # --------------------------------------------------------------------- #
@@ -86,7 +94,26 @@ class PPO(AlgorithmBase):
     # --------------------------------------------------------------------- #
     @torch.no_grad()
     def act(self, obs, critic_obs, **kwargs):
-        self.transition.actions = self.actor.act(obs, **kwargs).detach()
+        # NaN guard: a non-finite obs reaching the actor produces
+        # Normal(loc=nan), which raises a generic ValueError that hides the
+        # underlying cause. Dump the offending tensors first so the failure
+        # is debuggable from the run dir.
+        try:
+            actions = self.actor.act(obs, **kwargs).detach()
+        except (ValueError, RuntimeError) as e:
+            self._dump_nan_state(obs, critic_obs, error=e)
+            raise RuntimeError(
+                f"PPO.act: actor.act raised {type(e).__name__} (likely Normal(loc=nan)). "
+                f"State dumped to {self.nan_dump_dir or '/tmp'}/. Original: {e}"
+            ) from e
+        if not torch.isfinite(actions).all():
+            self._dump_nan_state(obs, critic_obs, actions=actions)
+            raise RuntimeError(
+                f"PPO.act: actor returned non-finite actions "
+                f"(nan={int(torch.isnan(actions).sum())}, inf={int(torch.isinf(actions).sum())}). "
+                f"State dumped to {self.nan_dump_dir or '/tmp'}/."
+            )
+        self.transition.actions = actions
         self.transition.values = self.critic(critic_obs, **kwargs).detach()
         self.transition.actions_log_prob = self.actor.get_actions_log_prob(self.transition.actions).detach()
         self.transition.action_mean = self.actor.action_mean.detach()
@@ -94,6 +121,40 @@ class PPO(AlgorithmBase):
         self.transition.observations = obs
         self.transition.critic_observations = critic_obs
         return self.transition.actions
+
+    @torch.no_grad()
+    def _dump_nan_state(self, obs, critic_obs, actions=None, error=None):
+        """Best-effort dump of the offending tensors so NaN failures are debuggable.
+
+        Captures obs / critic_obs (post-normalization in OnPolicyRunner),
+        actor.action_mean / action_std if the actor populated them before
+        raising, the actions tensor if available, and the exception text.
+        """
+        dump_dir = self.nan_dump_dir or "/tmp"
+        os.makedirs(dump_dir, exist_ok=True)
+        path = os.path.join(dump_dir, f"nan_dump_pid{os.getpid()}_{int(time.time())}.pt")
+        payload = {
+            "obs": obs.detach().cpu() if isinstance(obs, torch.Tensor) else obs,
+            "critic_obs": critic_obs.detach().cpu() if isinstance(critic_obs, torch.Tensor) else critic_obs,
+            "actions": actions.detach().cpu() if isinstance(actions, torch.Tensor) else None,
+            "actor_action_mean": (
+                self.actor.action_mean.detach().cpu()
+                if hasattr(self.actor, "action_mean") and isinstance(getattr(self.actor, "action_mean", None), torch.Tensor)
+                else None
+            ),
+            "actor_action_std": (
+                self.actor.action_std.detach().cpu()
+                if hasattr(self.actor, "action_std") and isinstance(getattr(self.actor, "action_std", None), torch.Tensor)
+                else None
+            ),
+            "error": repr(error) if error is not None else None,
+            "traceback": traceback.format_exc() if error is not None else None,
+        }
+        try:
+            torch.save(payload, path)
+            print(f"[NaN guard] dumped state to {path}", flush=True)
+        except Exception as save_err:  # don't mask the original error
+            print(f"[NaN guard] FAILED to dump to {path}: {save_err}", flush=True)
 
     def process_env_step(self, rewards, dones, infos):
         self.transition.rewards = rewards.clone()
