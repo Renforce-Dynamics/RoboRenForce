@@ -67,18 +67,28 @@ class AMPOnPolicyImitationRunner(BaseRunner):
         num_critic_obs = self.env.dim_params.get("critic_dim", num_actor_obs)
         num_actions = self.env.num_actions
 
-        # Policy (Actor-Critic pack)
+        # Policy (Actor-Critic pack). ``ActorCritic.__init__`` consumes a
+        # single ``dim_params`` dict (same convention as
+        # ``on_policy_runner.py``); the AMP wrapper inherits ``dim_params``
+        # from ``MJLabDynamicEnvWrapper``. We patch in the trio above so
+        # backends that haven't populated those keys still work.
+        dim_params = dict(self.env.dim_params)
+        dim_params.setdefault("policy_dim", num_actor_obs)
+        dim_params.setdefault("critic_dim", num_critic_obs)
+        dim_params.setdefault("action_dim", num_actions)
         self.actor_critic: ActorCritic = self.policy_cfg.construct_from_cfg(
-            state_dim=num_actor_obs,
-            critic_dim=num_critic_obs,
-            action_dim=num_actions,
-            device=self.device,
+            dim_params=dim_params,
         )
         self.actor_critic.to(self.device)
 
-        # Motion dataset (expert AMP transitions)
-        amp_dataset: "MotionDataset" = self.amp_data_cfg.construct_from_cfg(
-            env=self.env.unwrapped, device=self.device
+        # Motion dataset (expert AMP transitions). ``MotionDatasetCfg`` is a
+        # plain ``@configclass`` without the ``class_type``-based
+        # construct_from_cfg trampoline, so we instantiate the class
+        # directly.
+        amp_dataset: "MotionDataset" = self.amp_data_cfg.class_type(
+            self.amp_data_cfg,
+            env=self.env.unwrapped,
+            device=self.device,
         )
 
         # AMP observation dimension

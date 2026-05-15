@@ -27,18 +27,32 @@ class Discriminator(ModuleBase):
         self.input_dim = input_dim
         self.device = torch.device(device)
 
-        # Backbone MLP that maps input_dim → 1 logit
-        self.backbone: MLP = cfg.backbone_cfg.class_type(
-            cfg=cfg.backbone_cfg,
-            in_feature=input_dim,
-            out_feature=1,
+        # Split the backbone into ``trunk`` (input_dim → last_hidden) and
+        # ``amp_linear`` (last_hidden → 1). AMPPPO applies different
+        # weight-decay to each, so they need to be distinct submodules.
+        hidden = list(cfg.backbone_cfg.hidden_features)
+        if not hidden:
+            raise ValueError(
+                "DiscriminatorCfg.backbone_cfg.hidden_features must be "
+                "non-empty (need at least one trunk hidden layer)."
+            )
+        last_hidden = hidden[-1]
+        trunk_cfg = MLPCfg(
+            hidden_features=hidden[:-1],
+            activations=cfg.backbone_cfg.activations[:-1] or [[]],
         )
+        self.trunk: MLP = MLP(
+            cfg=trunk_cfg,
+            in_feature=input_dim,
+            out_feature=last_hidden,
+        )
+        self.amp_linear: nn.Linear = nn.Linear(last_hidden, 1)
 
         self.to(self.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass that returns discriminator logits."""
-        return self.backbone(x)
+        return self.amp_linear(self.trunk(x))
 
     def compute_grad_pen(
         self,

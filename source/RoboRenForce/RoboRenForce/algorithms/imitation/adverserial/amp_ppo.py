@@ -125,16 +125,17 @@ class AMPPPO(PPO):
             1.0 - 0.25 * torch.square(d_logits - 1.0), min=0.0
         )
 
-        # Ensure shapes are compatible with task_rewards
-        if amp_rewards.shape != task_rewards.shape:
-            amp_rewards = amp_rewards.view_as(task_rewards)
+        # Discriminator output is (num_envs, 1); task_rewards comes from the
+        # env as (num_envs,). Promote task_rewards to (num_envs, 1) so the
+        # lerp is element-wise instead of broadcasting (num_envs,) +
+        # (num_envs, 1) into a (num_envs, num_envs) matrix.
+        if task_rewards.dim() == 1:
+            task_r = task_rewards.unsqueeze(-1)
+        else:
+            task_r = task_rewards
 
         reward = amp_rewards
         if self.cfg.amp_task_reward_lerp > 0.0:
-            if task_rewards.dim() == 1:
-                task_r = task_rewards.unsqueeze(-1)
-            else:
-                task_r = task_rewards
             reward = (
                 (1.0 - self.cfg.amp_task_reward_lerp) * amp_rewards
                 + self.cfg.amp_task_reward_lerp * task_r
@@ -285,8 +286,8 @@ class AMPPPO(PPO):
             self.optimizer.step()
 
             if self.amp_normalizer is not None:
-                self.amp_normalizer.update(policy_state.detach().cpu())
-                self.amp_normalizer.update(expert_state.detach().cpu())
+                self.amp_normalizer.update(policy_state.detach())
+                self.amp_normalizer.update(expert_state.detach())
 
             mean_value_loss += value_loss.item()
             mean_surrogate_loss += surrogate_loss.item()

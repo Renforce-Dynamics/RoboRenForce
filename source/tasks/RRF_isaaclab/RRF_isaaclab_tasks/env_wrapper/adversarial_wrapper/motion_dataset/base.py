@@ -76,7 +76,7 @@ class MotionDataset:
                 raise FileNotFoundError(f"Invalid motion file: {f}")
             data = np.load(f)
 
-            fps_list.append(float(data["fps"]))
+            fps_list.append(float(np.asarray(data["fps"]).reshape(-1)[0]))
             traj_len = data["joint_pos"].shape[0]
             traj_lengths.append(traj_len)
 
