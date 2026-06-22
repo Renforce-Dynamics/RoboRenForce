@@ -35,6 +35,8 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--max_iterations", type=int, default=None)
+    parser.add_argument("--amp_reward_coef", type=float, default=None,
+                        help="Override AMPPPO amp_reward_coef, e.g. 0.25 for half of the default 0.5.")
     parser.add_argument("--resume", type=str, default=None)
     parser.add_argument("--run_name", type=str, default=None)
     parser.add_argument("--experiment_name", type=str, default=None)
@@ -83,6 +85,8 @@ def main():
     agent_cfg.seed = args.seed
     if args.max_iterations is not None:
         agent_cfg.max_iterations = args.max_iterations
+    if args.amp_reward_coef is not None:
+        agent_cfg.algorithm.amp_reward_coef = args.amp_reward_coef
     if args.run_name is not None:
         agent_cfg.run_name = args.run_name
     if args.experiment_name is not None:
